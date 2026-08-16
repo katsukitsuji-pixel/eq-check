@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>機材 持出・返却チェック</title>
+<!--
+  HCX 機材 持出・返却チェック（現場スマホ用）
+
+  ★★★ なぜこの画面だけ外（GitHub Pages）にあるか
+    Apps Script の画面は Google の入れ子の枠（iframe）の中で動きます。
+    その枠にカメラの許可が付いていないので、**カメラを開けません。**
+    だから読み取りだけを外に置き、機材システムへ問い合わせます。
+
+  ★★ 設定するのは1か所だけです（下の API_URL）。
+    合言葉はここに置きません。案件ごとの使い捨てトークン（?t=）で本人を確かめます。
+    このファイルが誰に見られても、**中に鍵はありません。**
+-->
+<script src="./html5-qrcode.min.js" onerror="window.__カメラの予備なし = 1;"></script>
+<style>
+  :root{ --pri:#1a73e8; --ok:#0f9d58; --warn:#d93025; --bg:#f0f2f5; --bd:#dadce0; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{ margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+        background:var(--bg); color:#222; }
+  header{ position:sticky; top:0; z-index:10; background:#fff; border-bottom:1px solid var(--bd);
+          padding:10px 12px; box-shadow:0 2px 4px rgba(0,0,0,.05); }
+  h1{ font-size:15px; margin:0 0 6px; color:var(--pri); }
+  .order{ font-size:12px; color:#555; line-height:1.5; word-break:break-all; }
+  .modebar{ display:flex; gap:8px; margin-top:8px; }
+  .modebar button{ flex:1; padding:10px 0; font-size:13px; font-weight:bold;
+                   border:1px solid var(--pri); background:#fff; color:var(--pri); border-radius:6px; }
+  .modebar button.on{ background:var(--pri); color:#fff; }
+  .bar{ display:flex; align-items:center; gap:8px; padding:8px 12px; background:#fff;
+        border-bottom:1px solid var(--bd); }
+  .prog{ font-weight:bold; font-size:14px; }
+  .prog small{ color:#888; font-weight:normal; }
+  #reader{ display:none; background:#000; }
+  #reader video{ width:100% !important; }
+  .list{ padding:8px 10px 140px; }
+  .item{ display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--bd);
+         border-radius:8px; padding:12px; margin-bottom:8px; }
+  .item.checked{ background:#e6f4ea; border-color:#b7e1c4; }
+  .item.extra{ background:#fff8e1; border-color:#ffe082; }
+  .item .nm{ flex:1; min-width:0; }
+  .item .nm b{ font-size:14px; display:block; word-break:break-all; }
+  .item .nm span{ font-size:11px; color:#777; }
+  .mark{ width:28px; height:28px; border-radius:50%; border:2px solid #bbb; flex-shrink:0;
+         display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold; }
+  .item.checked .mark{ background:var(--ok); border-color:var(--ok); }
+  .foot{ position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--bd);
+         padding:10px 12px; display:flex; gap:8px; box-shadow:0 -2px 6px rgba(0,0,0,.06); }
+  .foot input{ flex:1; padding:12px; border:1px solid var(--bd); border-radius:6px;
+               font-size:14px; min-width:0; }
+  .btn{ padding:12px 14px; border:none; border-radius:8px; font-weight:bold; font-size:14px; }
+  .btn.scan{ background:var(--pri); color:#fff; }
+  .btn.save{ background:var(--ok); color:#fff; }
+  .msg{ padding:20px; text-align:center; color:#555; font-size:13px; line-height:1.8; }
+  .err{ margin:12px; padding:14px; background:#fce8e6; color:#c5221f; border-radius:8px;
+        font-size:13px; line-height:1.8; white-space:pre-wrap; }
+  .toast{ position:fixed; top:120px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.85);
+          color:#fff; padding:12px 18px; border-radius:24px; font-weight:bold; font-size:14px;
+          z-index:50; display:none; max-width:90%; text-align:center; }
+  .toast.ok{ background:var(--ok); } .toast.warn{ background:var(--warn); } .toast.dup{ background:#e8930c; }
+  .pending{ background:#fff3cd; color:#856404; font-size:12px; text-align:center; padding:8px; display:none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>機材 持出・返却チェック</h1>
+  <div class="order" id="orderInfo">読み込み中…</div>
+  <div class="modebar">
+    <button id="mOut" class="on">持ち出し</button>
+    <button id="mRet">返却</button>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="prog" id="prog">0 / 0 <small>チェック済</small></div>
+  <button class="btn scan" id="scanBtn" style="margin-left:auto; padding:8px 12px;">カメラでスキャン</button>
+</div>
+
+<div id="reader"></div>
+<div class="pending" id="pending">まだ送れていないチェックがあります。「保存」を押してください。</div>
+
+<div class="list" id="list"><div class="msg">読み込み中…</div></div>
+
+<div class="foot">
+  <input id="manual" placeholder="管理番号を手で入れる" inputmode="text">
+  <button class="btn scan" id="manualBtn" style="padding:12px;">追加</button>
+  <button class="btn save" id="saveBtn">保存</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==========================================================
+//  設定 — ここだけ書き換えます
+// ==========================================================
+//
+// ★ 機材システムのウェブアプリURL（末尾 /exec）。
+//   `?api=` を付けて開けば、その場で差し替えて試せます（試験用）。
+var API_URL = 'https://script.google.com/a/macros/humancentrix.com/s/AKfycbw8QxEBpspDD7zkk95lijdG-qhyzyJP-D6i-3xnmhQ-DC8fli03syxt_7rhT5Eveiw/exec';
+
+var qs = new URLSearchParams(location.search);
+if (qs.get('api')) API_URL = qs.get('api');
+var TOKEN = qs.get('t') || '';
+
+var 控えの鍵   = 'hcx_check_' + TOKEN;
+var 未送信の鍵 = 'hcx_pending_' + TOKEN;
+var 記録者の鍵 = 'hcx_check_by';
+
+var state = { order: null, items: [], mode: 'out' };
+var 読み取り中 = false;
+var スキャナ = null;
+
+function $(id) { return document.getElementById(id); }
+
+// ==========================================================
+//  サーバーを呼ぶ
+// ==========================================================
+//
+// ★★★ **`Content-Type` は `text/plain` にすること。**
+//   `application/json` にすると、ブラウザが先に OPTIONS を投げます（プリフライト）。
+//   Apps Script は OPTIONS に答えられないので、**その時点で失敗します。**
+//   `text/plain` なら「ふつうの送信」とみなされ、そのまま通ります。
+//   受け側は中身を JSON として読むので、これで困りません。
+function 呼ぶ(action, 追加) {
+  var body = { kind: 'check', t: TOKEN, action: action };
+  for (var k in (追加 || {})) body[k] = 追加[k];
+  return fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
+  }).then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.error) || '処理に失敗しました。');
+      return res.data;
+    });
+}
+
+// ==========================================================
+//  起動
+// ==========================================================
+document.addEventListener('DOMContentLoaded', function () {
+  $('mOut').addEventListener('click', function () { モードを変える('out'); });
+  $('mRet').addEventListener('click', function () { モードを変える('return'); });
+  $('scanBtn').addEventListener('click', スキャンの入り切り);
+  $('manualBtn').addEventListener('click', 手で足す);
+  $('manual').addEventListener('keydown', function (e) { if (e.key === 'Enter') 手で足す(); });
+  $('saveBtn').addEventListener('click', 保存する);
+
+  if (!TOKEN) {
+    $('list').innerHTML = '<div class="err">この画面は、機材システムの案件から開いてください。\n' +
+      '（案件を開いて「📷 QRで持出・返却チェック」を押すと、QRが出ます）</div>';
+    return;
+  }
+  if (localStorage.getItem(未送信の鍵)) $('pending').style.display = 'block';
+  一覧を読む();
+});
+
+// ==========================================================
+//  案件の機材を読む
+// ==========================================================
+function 一覧を読む() {
+  呼ぶ('order')
+    .then(function (d) {
+      state.order = d.order;
+      state.items = (d.items || []).map(function (x) {
+        return { eqId: x.eqId, name: x.name, no: x.no, category: x.category,
+                 checked: false, extra: false };
+      });
+      localStorage.setItem(控えの鍵, JSON.stringify({ order: d.order, items: d.items, at: Date.now() }));
+      案件を出す();
+      描く();
+    })
+    .catch(function (e) {
+      // ★★★ **黙って空にしないこと。**
+      //   ここで「0台」と出すと、現場は「この案件は機材が無い」と読みます。
+      //   電波が悪いだけのこともあるので、前に読んだものがあれば、そう断って出します。
+      var 控え = null;
+      try { 控え = JSON.parse(localStorage.getItem(控えの鍵) || 'null'); } catch (e2) {}
+      if (控え && 控え.items) {
+        state.order = 控え.order;
+        state.items = 控え.items.map(function (x) {
+          return { eqId: x.eqId, name: x.name, no: x.no, category: x.category,
+                   checked: false, extra: false };
+        });
+        案件を出す();
+        描く();
+        知らせる('つながらないので、前に読んだ一覧を出しています', 'warn');
+        return;
+      }
+      $('list').innerHTML = '';
+      var d = document.createElement('div');
+      d.className = 'err';
+      d.textContent = '機材の一覧を読めませんでした。\n' + ((e && e.message) || e) +
+                      '\n\n電波を確かめて、画面を開き直してください。';
+      $('list').appendChild(d);
+    });
+}
+
+function 案件を出す() {
+  var o = state.order || {};
+  $('orderInfo').textContent = (o.staffName || '') + '　' + (o.projectName || '') + '\n' +
+                               短く(o.start) + ' 〜 ' + 短く(o.end);
+  $('orderInfo').style.whiteSpace = 'pre-wrap';
+}
+
+function 短く(s) {
+  var m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (m[2] + '/' + m[3]) : String(s || '');
+}
+
+// ==========================================================
+//  持ち出し／返却
+// ==========================================================
+//
+// ★★ **切り替えたらチェックは消します。** 持出と返却は別の記録です。
+//   残したままにすると、返却のつもりで持出のチェックを保存してしまいます。
+function モードを変える(m) {
+  if (state.mode === m) return;
+  var 済 = state.items.filter(function (i) { return i.checked; }).length;
+  if (済 && !confirm('チェックした ' + 済 + ' 件を消して切り替えます。よろしいですか？')) return;
+  state.mode = m;
+  $('mOut').className = (m === 'out') ? 'on' : '';
+  $('mRet').className = (m === 'return') ? 'on' : '';
+  state.items.forEach(function (i) { i.checked = false; });
+  描く();
+}
+
+// ==========================================================
+//  描く
+// ==========================================================
+function 描く() {
+  var box = $('list');
+  box.innerHTML = '';
+  if (!state.items.length) {
+    box.innerHTML = '<div class="msg">この案件に機材の予約がありません。</div>';
+  }
+  state.items.forEach(function (it, i) {
+    var d = document.createElement('div');
+    d.className = 'item' + (it.checked ? ' checked' : '') + (it.extra ? ' extra' : '');
+    d.addEventListener('click', function () { it.checked = !it.checked; 描く(); });
+
+    var nm = document.createElement('div');
+    nm.className = 'nm';
+    var b = document.createElement('b');
+    b.textContent = (it.extra ? '［予約外］' : '') + (it.name || it.eqId);
+    var sp = document.createElement('span');
+    sp.textContent = [it.no, it.category].filter(Boolean).join('　');
+    nm.appendChild(b); nm.appendChild(sp);
+
+    var mk = document.createElement('div');
+    mk.className = 'mark';
+    mk.textContent = it.checked ? '✓' : '';
+
+    d.appendChild(nm); d.appendChild(mk);
+    box.appendChild(d);
+    void i;
+  });
+  var 済 = state.items.filter(function (x) { return x.checked; }).length;
+  $('prog').innerHTML = 済 + ' / ' + state.items.length + ' <small>チェック済</small>';
+}
+
+// ==========================================================
+//  読み取り
+// ==========================================================
+function スキャンの入り切り() {
+  if (読み取り中) { スキャンを止める(); return; }
+  if (typeof Html5Qrcode === 'undefined') {
+    知らせる('カメラの部品が読み込めていません。手で入れてください', 'warn');
+    return;
+  }
+  $('reader').style.display = 'block';
+  スキャナ = new Html5Qrcode('reader');
+  スキャナ.start({ facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 240, height: 240 } },
+    function (text) { 読んだ(text); },
+    function () { /* 読めなかったコマは、いちいち言わない */ }
+  ).then(function () {
+    読み取り中 = true;
+    $('scanBtn').textContent = 'カメラを止める';
+  }).catch(function (e) {
+    $('reader').style.display = 'none';
+    知らせる('カメラを開けませんでした: ' + ((e && e.message) || e), 'warn');
+  });
+}
+
+function スキャンを止める() {
+  if (!スキャナ) return;
+  スキャナ.stop().then(function () {
+    スキャナ.clear();
+    スキャナ = null;
+    読み取り中 = false;
+    $('reader').style.display = 'none';
+    $('scanBtn').textContent = 'カメラでスキャン';
+  }).catch(function () { /* 止められなくても、画面は閉じる */
+    読み取り中 = false;
+    $('reader').style.display = 'none';
+    $('scanBtn').textContent = 'カメラでスキャン';
+  });
+}
+
+var 直前 = { text: '', at: 0 };
+
+/**
+ * QRを1つ読んだ
+ *
+ * ★★★ **うちのQRかどうかを、印で見分けます。**（`HCX:` で始まるもの）
+ *   ただの機材IDにすると、よそのバーコードを読んだときに
+ *   たまたま通ってしまいます。現場は「読めた＝合っている」と思って進みます。
+ */
+function 読んだ(text) {
+  var t = String(text || '').trim();
+  // ★ 同じものを続けて読んでも、1回だけ数える（カメラは毎秒何度も読みます）
+  if (t === 直前.text && Date.now() - 直前.at < 2500) return;
+  直前 = { text: t, at: Date.now() };
+
+  if (t.indexOf('HCX:') !== 0) {
+    知らせる('この機材のQRではありません', 'warn');
+    鳴らす(false);
+    return;
+  }
+  当てる(t.substring(4).trim());
+}
+
+function 手で足す() {
+  var v = String($('manual').value || '').trim();
+  if (!v) return;
+  $('manual').value = '';
+  // ★ 手入力は、管理番号でも機材IDでも受けます（現場で使い分けさせない）
+  当てる(v);
+}
+
+function 当てる(値) {
+  var v = String(値 || '').toLowerCase();
+  var hit = null;
+  for (var i = 0; i < state.items.length; i++) {
+    var it = state.items[i];
+    if (String(it.eqId).toLowerCase() === v || String(it.no).toLowerCase() === v) { hit = it; break; }
+  }
+  if (hit) {
+    if (hit.checked) { 知らせる('もう読んでいます: ' + (hit.name || hit.eqId), 'dup'); return; }
+    hit.checked = true;
+    描く();
+    知らせる('✓ ' + (hit.name || hit.eqId), 'ok');
+    鳴らす(true);
+    return;
+  }
+  // ★★ 予約に無いもの。**黙って足しません。** 何なのかを出して、聞きます。
+  呼ぶ('find', { eqId: 値 })
+    .then(function (d) {
+      if (!d.found) { 知らせる('登録の無い機材です: ' + 値, 'warn'); 鳴らす(false); return; }
+      var m = d.item;
+      if (!confirm('この機材は、この案件の予約にありません。\n\n' +
+                   (m.name || m.eqId) + '　' + (m.no || '') + '\n\n' +
+                   '「予約外」として記録に足しますか？')) return;
+      state.items.push({ eqId: m.eqId, name: m.name, no: m.no, category: m.category,
+                         checked: true, extra: true });
+      描く();
+      知らせる('予約外として足しました', 'ok');
+    })
+    .catch(function (e) { 知らせる(((e && e.message) || e), 'warn'); });
+}
+
+function 鳴らす(よい) {
+  try { if (navigator.vibrate) navigator.vibrate(よい ? 40 : [60, 60, 60]); } catch (e) {}
+}
+
+function 知らせる(text, kind) {
+  var t = $('toast');
+  t.textContent = text;
+  t.className = 'toast ' + (kind || '');
+  t.style.display = 'block';
+  clearTimeout(t.__timer);
+  t.__timer = setTimeout(function () { t.style.display = 'none'; }, 1800);
+}
+
+// ==========================================================
+//  保存
+// ==========================================================
+//
+// ★★ **途中でも保存できます。** 現場は待ってくれません。
+//   足りないぶんは「未チェック」として残ります。
+//   **黙って「全部そろった」ことにはしません。**
+function 保存する() {
+  if (!state.items.length) { 知らせる('保存するものがありません', 'warn'); return; }
+  var 済 = state.items.filter(function (x) { return x.checked && !x.extra; }).length;
+  var 未 = state.items.filter(function (x) { return !x.checked && !x.extra; }).length;
+  var 種別 = (state.mode === 'return') ? '返却' : '持ち出し';
+
+  if (!confirm(種別 + 'のチェックを記録します。\n\n' +
+               '　チェック済　' + 済 + ' 件\n' +
+               '　未チェック　' + 未 + ' 件\n\n' +
+               (未 ? '未チェックのぶんは「未チェック」として残ります。\n\n' : '') +
+               'よろしいですか？')) return;
+
+  var 荷物 = {
+    mode: state.mode,
+    results: state.items.map(function (x) {
+      return { eqId: x.eqId, checked: !!x.checked, extra: !!x.extra };
+    })
+  };
+  送る(荷物);
+}
+
+function 送る(荷物) {
+  $('saveBtn').disabled = true;
+  呼ぶ('save', 荷物)
+    .then(function (d) {
+      localStorage.removeItem(未送信の鍵);
+      $('pending').style.display = 'none';
+      知らせる('記録しました（済' + d.checked + ' / 未' + d.missing + '）', 'ok');
+    })
+    .catch(function (e) {
+      // ★★★ **落としたものを、なかったことにしない。**
+      //   電波の悪い現場で押すことが前提です。端末に残して、次に押したときに送ります。
+      localStorage.setItem(未送信の鍵, JSON.stringify(荷物));
+      $('pending').style.display = 'block';
+      alert('記録を送れませんでした。\n' + ((e && e.message) || e) +
+            '\n\nこの端末に残してあります。電波の届くところで、もう一度「保存」を押してください。');
+    })
+    .then(function () { $('saveBtn').disabled = false; });
+}
+</script>
+</body>
+</html>
