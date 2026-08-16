@@ -81,6 +81,9 @@
 </div>
 
 <div id="reader"></div>
+<!-- ★ カメラのズーム（使える端末でだけボタンが出ます） -->
+<div id="zoombar" style="display:none;align-items:center;padding:8px 12px;
+                         border-bottom:1px solid #eee;background:#fafbfc;"></div>
 <!-- ★★★ **読んだものを、必ず見せること。**（2026-08-16）
      辻さんから「読ませても反応しません」と言われました。
      知らせは1.8秒で消えるので、**見逃すと手がかりがゼロ**です。
@@ -89,6 +92,9 @@
 <div id="last" style="display:none;font-size:12px;padding:8px 12px;border-bottom:1px solid #eee;
                       background:#fafbfc;word-break:break-all;line-height:1.6;"></div>
 <div class="pending" id="pending">まだ送れていないチェックがあります。「保存」を押してください。</div>
+<!-- ★★★ 仕度が整っていないことを、**読ませる前に**言う（2026-08-16） -->
+<div id="warnbar" style="display:none;background:#fce8e6;color:#c5221f;border-bottom:1px solid #f5c6c2;
+                         padding:10px 12px;font-size:12px;line-height:1.8;white-space:pre-wrap;"></div>
 
 <div class="list" id="list"><div class="msg">読み込み中…</div></div>
 
@@ -110,7 +116,7 @@
 //
 // ★ 機材システムのウェブアプリURL（末尾 /exec）。
 //   `?api=` を付けて開けば、その場で差し替えて試せます（試験用）。
-var API_URL = 'https://script.google.com/macros/s/AKfycby9f0sGKqgR0FraZSbQs1BX04flmJqpLdERVpFLuEDkhUTyv88NXoma8o4Sq93nGyo/exec';
+var API_URL = 'https://script.google.com/a/macros/humancentrix.com/s/AKfycbw8QxEBpspDD7zkk95lijdG-qhyzyJP-D6i-3xnmhQ-DC8fli03syxt_7rhT5Eveiw/exec';
 
 var qs = new URLSearchParams(location.search);
 if (qs.get('api')) API_URL = qs.get('api');
@@ -197,6 +203,7 @@ function 一覧を読む() {
         { order: d.order, items: d.items, 印たち: state.印たち, at: Date.now() }));
       案件を出す();
       描く();
+      古いサーバーでないか確かめる_(d);
     })
     .catch(function (e) {
       // ★★★ **黙って空にしないこと。**
@@ -229,6 +236,42 @@ function 一覧を読む() {
       //   **原因を知りたいのは、しくじったとき**です。逆でした。
       素性を出す('', 'サーバーに届かないか、断られました');
     });
+}
+
+/**
+ * ★★★ **古いサーバーに話しかけていたら、読ませる前に言うこと。**（2026-08-16）
+ *
+ *   2026-08-16、辻さんが正しいラベル（`H:0D5FAED4`）を読ませたのに
+ *   「この機材のQRではありません」と出ました。
+ *   原因は**2つめのデプロイが古かった**こと。印も、機材ごとの文字も
+ *   返ってきていませんでした。
+ *
+ *   ★ これは**読む前から分かっていたこと**です。
+ *     それを、読ませてから1点ずつ分かりにくい形で伝えていました。
+ *     **仕度が整っていないなら、最初にそう言うべき**でした。
+ */
+function 古いサーバーでないか確かめる_(d) {
+  var 印なし = !(state.印たち && state.印たち.length);
+  var 文字なし = (state.items || []).length > 0 &&
+                 !state.items.some(function (x) { return x.qr; });
+  if (!印なし && !文字なし) { 帯を消す_(); return; }
+  帯を出す_(
+    '⚠️ このままではQRを読んでもチェックできません' +
+    '（サーバーが古いままです）\n' +
+    'GASエディタ →［デプロイ］→［デプロイを管理］→ ' +
+    '**2つめ（QRチェック用API）の ✏️** → バージョン「新バージョン」→［デプロイ］\n' +
+    'そのあと、この画面を開き直してください。');
+}
+
+function 帯を出す_(文) {
+  var e = $('warnbar');
+  if (!e) return;
+  e.textContent = 文;
+  e.style.display = 'block';
+}
+function 帯を消す_() {
+  var e = $('warnbar');
+  if (e) e.style.display = 'none';
 }
 
 function 案件を出す() {
@@ -297,6 +340,23 @@ function 描く() {
 // ==========================================================
 //  読み取り
 // ==========================================================
+/**
+ * ★★★ **小さいQRを読みやすくする2つの手** （2026-08-16 辻さんのご指示）
+ *
+ *   ① **写す細かさを上げる**（解像度）
+ *      1マスに当たる画素が増えます。**どの端末でも効きます。**
+ *   ② **カメラのズーム**（2倍）
+ *      レンズ側で寄ります。**効かない端末があります**（iPhoneのSafariは
+ *      ズームを触らせてくれないことが多い）。
+ *
+ *   ★ ①は黙って必ず入れます。②は**使える端末でだけ**入れ、
+ *     使えないときは**そう画面に出します**（黙って何もしない、をやめる）。
+ *
+ *   ★★ 倍率は覚えます。現場で毎回押し直さなくて済むように。
+ */
+var 倍率 = Number(localStorage.getItem('HCX_ZOOM') || '2') || 2;
+var ズーム機能 = null;      // 使える端末でだけ入る
+
 function スキャンの入り切り() {
   if (読み取り中) { スキャンを止める(); return; }
   if (typeof Html5Qrcode === 'undefined') {
@@ -305,17 +365,79 @@ function スキャンの入り切り() {
   }
   $('reader').style.display = 'block';
   スキャナ = new Html5Qrcode('reader');
-  スキャナ.start({ facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 240, height: 240 } },
+  スキャナ.start(
+    // ★ ① 写す細かさを上げる。`ideal` なので、無理な端末では**黙って下がります**
+    { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+    // ★ 読み取る四角は、画面の短いほうの7割。**小さすぎると狙いにくく、
+    //   大きすぎると1マスの画素が減ります**
+    { fps: 10, qrbox: 読み取り枠_() },
     function (text) { 読んだ(text); },
     function () { /* 読めなかったコマは、いちいち言わない */ }
   ).then(function () {
     読み取り中 = true;
     $('scanBtn').textContent = 'カメラを止める';
+    ズームを用意する_();
   }).catch(function (e) {
     $('reader').style.display = 'none';
     知らせる('カメラを開けませんでした: ' + ((e && e.message) || e), 'warn');
   });
+}
+
+function 読み取り枠_() {
+  var 短い = Math.min(window.innerWidth, window.innerHeight);
+  var n = Math.max(180, Math.min(320, Math.round(短い * 0.7)));
+  return { width: n, height: n };
+}
+
+/**
+ * ★★ カメラのズームが使えるか確かめて、使えれば倍率を当てる
+ *
+ *   ★ 使えないときは**黙らないこと。** 「この端末では効きません」と出します。
+ *     効いていないのに倍率ボタンだけ出ていると、押しても何も起きません。
+ */
+function ズームを用意する_() {
+  ズーム機能 = null;
+  try {
+    var 能力 = スキャナ.getRunningTrackCameraCapabilities();
+    var z = 能力 && 能力.zoomFeature && 能力.zoomFeature();
+    if (z && z.isSupported()) ズーム機能 = z;
+  } catch (e) { ズーム機能 = null; }
+
+  var 箱 = $('zoombar');
+  if (!箱) return;
+  箱.style.display = 'flex';
+  if (!ズーム機能) {
+    箱.innerHTML = '<span style="font-size:11px;color:#5f6368;">' +
+      'この端末ではカメラのズームを使えません（写す細かさは上げてあります）</span>';
+    return;
+  }
+  var 最大 = 4;
+  try { 最大 = Math.min(4, ズーム機能.max() || 4); } catch (e) { 最大 = 4; }
+  箱.innerHTML = '';
+  [1, 2, 3].forEach(function (n) {
+    if (n > 最大) return;
+    var b = document.createElement('button');
+    b.className = 'btn';
+    b.style.cssText = 'padding:8px 14px;margin-right:6px;font-size:13px;' +
+      (n === 倍率 ? 'background:var(--pri);color:#fff;' : 'background:#fff;color:var(--pri);border:1px solid var(--pri);');
+    b.textContent = n + '倍';
+    b.addEventListener('click', function () { 倍率を変える_(n); });
+    箱.appendChild(b);
+  });
+  倍率を当てる_();
+}
+
+function 倍率を変える_(n) {
+  倍率 = n;
+  try { localStorage.setItem('HCX_ZOOM', String(n)); } catch (e) {}
+  倍率を当てる_();
+  ズームを用意する_();          // ボタンの色を塗り直す
+}
+
+function 倍率を当てる_() {
+  if (!ズーム機能) return;
+  try { ズーム機能.apply(倍率); }
+  catch (e) { 知らせる('ズームを変えられませんでした', 'warn'); }
 }
 
 function スキャンを止める() {
@@ -326,10 +448,12 @@ function スキャンを止める() {
     読み取り中 = false;
     $('reader').style.display = 'none';
     $('scanBtn').textContent = 'カメラでスキャン';
+    if ($('zoombar')) $('zoombar').style.display = 'none';
   }).catch(function () { /* 止められなくても、画面は閉じる */
     読み取り中 = false;
     $('reader').style.display = 'none';
     $('scanBtn').textContent = 'カメラでスキャン';
+    if ($('zoombar')) $('zoombar').style.display = 'none';
   });
 }
 
@@ -368,6 +492,13 @@ function 読んだ(text) {
 
   // ② 当たらない。うちのQRか？
   if (!うちの印か(t)) {
+    // ★ 印が届いていないのは**サーバーが古い**からです。QRのせいにしないこと
+    if (!(state.印たち && state.印たち.length)) {
+      読んだものを出す(t, 'サーバーが古いため、確かめられません（上の赤い帯を見てください）', 'warn');
+      知らせる('サーバーが古いままです', 'warn');
+      鳴らす(false);
+      return;
+    }
     読んだものを出す(t, 'この案件の機材ではなく、うちのQRでもありません' +
                         印の説明_(), 'warn');
     知らせる('この機材のQRではありません', 'warn');
