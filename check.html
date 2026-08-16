@@ -116,7 +116,13 @@
 //
 // ★ 機材システムのウェブアプリURL（末尾 /exec）。
 //   `?api=` を付けて開けば、その場で差し替えて試せます（試験用）。
-var API_URL = 'https://script.google.com/macros/s/AKfycby9f0sGKqgR0FraZSbQs1BX04flmJqpLdERVpFLuEDkhUTyv88NXoma8o4Sq93nGyo/exec';
+// ★★★ **この画面（check.html）自身の版。**
+//   サーバーの版とは別物です。GitHub の差し替えを忘れると、
+//   ここだけ古いまま気づけません。**直したら必ず1つ上げること。**
+//     C7 … カメラの指定を鍵1つに直した（3つ渡してカメラが開かなかった件）
+var 画面の版 = 'C7';
+
+var API_URL = 'https://script.google.com/a/macros/humancentrix.com/s/AKfycbw8QxEBpspDD7zkk95lijdG-qhyzyJP-D6i-3xnmhQ-DC8fli03syxt_7rhT5Eveiw/exec';
 
 var qs = new URLSearchParams(location.search);
 if (qs.get('api')) API_URL = qs.get('api');
@@ -356,6 +362,7 @@ function 描く() {
  */
 var 倍率 = Number(localStorage.getItem('HCX_ZOOM') || '2') || 2;
 var ズーム機能 = null;      // 使える端末でだけ入る
+var 開いた細かさ_ = '';     // どの注文で開けたか（画面に出します）
 
 function スキャンの入り切り() {
   if (読み取り中) { スキャンを止める(); return; }
@@ -365,22 +372,64 @@ function スキャンの入り切り() {
   }
   $('reader').style.display = 'block';
   スキャナ = new Html5Qrcode('reader');
+
+  // ★★★ **カメラの指定は「キーちょうど1つ」でなければ通りません。**
+  //   （2026-08-16、辻さんのカメラが開かなくなりました。**私の書き間違い**です）
+  //
+  //     'cameraIdOrConfig' object should have exactly 1 key,
+  //      if passed as an object, found 3 keys
+  //
+  //   `{ facingMode, width, height }` と3つ渡していました。
+  //   写す細かさは、**開いたあとに**別の命令（`applyVideoConstraints`）で頼みます。
+  //
+  //   ★★ おまけ（細かさ・ズーム）のために、本業（読み取り）を止めないこと。
+  //     開くほうを先に済ませ、細かさは**開いたあとに、失敗してもよい形で**足します。
+  順に開く_([
+    { 名: '外カメラ', c: { facingMode: 'environment' } },   // ★ キーは1つだけ
+    { 名: '最後の砦', c: true }                              // どれも通らない端末のため
+  ], 0);
+}
+
+/**
+ * ★ 指定を1つずつ試す。**どれかで開けばよい。**
+ *   全部だめだったときだけ、**最後の理由を添えて**知らせます。
+ */
+function 順に開く_(注文たち, i) {
+  if (i >= 注文たち.length) return;
+  var 今 = 注文たち[i];
   スキャナ.start(
-    // ★ ① 写す細かさを上げる。`ideal` なので、無理な端末では**黙って下がります**
-    { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-    // ★ 読み取る四角は、画面の短いほうの7割。**小さすぎると狙いにくく、
-    //   大きすぎると1マスの画素が減ります**
+    今.c,
     { fps: 10, qrbox: 読み取り枠_() },
     function (text) { 読んだ(text); },
     function () { /* 読めなかったコマは、いちいち言わない */ }
   ).then(function () {
     読み取り中 = true;
     $('scanBtn').textContent = 'カメラを止める';
+    細かさを上げる_();          // ★ 開いたあとに頼む。失敗しても、カメラは開いたまま
     ズームを用意する_();
   }).catch(function (e) {
+    if (i + 1 < 注文たち.length) { 順に開く_(注文たち, i + 1); return; }
     $('reader').style.display = 'none';
+    if ($('zoombar')) $('zoombar').style.display = 'none';
     知らせる('カメラを開けませんでした: ' + ((e && e.message) || e), 'warn');
+    読んだものを出す('', 'カメラを開けませんでした：' + ((e && e.message) || e), 'warn');
   });
+}
+
+/**
+ * ★★ 写す細かさを上げる（1マスに当たる画素を増やす）
+ *
+ *   ★★★ **ここでしくじっても、カメラは開いたままにすること。**
+ *     細かさは「読みやすくするためのおまけ」です。
+ *     おまけのために、読み取りそのものを止めてはいけません。
+ */
+function 細かさを上げる_() {
+  開いた細かさ_ = 'ふつう';
+  try {
+    スキャナ.applyVideoConstraints({ width: { ideal: 1920 }, height: { ideal: 1080 } })
+      .then(function () { 開いた細かさ_ = '高'; ズームを用意する_(); })
+      .catch(function () { /* この端末では上げられません。ふつうのまま続けます */ });
+  } catch (e) { /* 同上 */ }
 }
 
 function 読み取り枠_() {
@@ -408,7 +457,7 @@ function ズームを用意する_() {
   箱.style.display = 'flex';
   if (!ズーム機能) {
     箱.innerHTML = '<span style="font-size:11px;color:#5f6368;">' +
-      'この端末ではカメラのズームを使えません（写す細かさは上げてあります）</span>';
+      'この端末ではカメラのズームを使えません（写す細かさ: ' + (開いた細かさ_ || '—') + '）</span>';
     return;
   }
   var 最大 = 4;
@@ -424,6 +473,10 @@ function ズームを用意する_() {
     b.addEventListener('click', function () { 倍率を変える_(n); });
     箱.appendChild(b);
   });
+  var 印 = document.createElement('span');
+  印.style.cssText = 'font-size:11px;color:#5f6368;margin-left:8px;';
+  印.textContent = '写す細かさ: ' + (開いた細かさ_ || '—');
+  箱.appendChild(印);
   倍率を当てる_();
 }
 
@@ -604,7 +657,8 @@ function 素性を出す(v, ひとこと) {
   if (!e) return;
   var 印 = (state.印たち || []).join(' / ') || '（届いていません）';
   var 行 = [];
-  行.push(v ? ('サーバー ' + v) : '版 不明');
+  行.push('画面 ' + 画面の版);          // ★ この check.html 自身の版（差し替え忘れが見える）
+  行.push(v ? ('サーバー ' + v) : 'サーバー 不明');
   行.push('印 ' + 印);
   // ★ どこへ話しかけているかも出す（2つめのデプロイのURLを取り違えていないか）
   行.push('行き先 …' + String(API_URL).slice(-22));
