@@ -20,59 +20,101 @@
 <style>
   :root{ --pri:#1a73e8; --ok:#0f9d58; --warn:#d93025; --bg:#f0f2f5; --bd:#dadce0; }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  /* ★★★★ **1画面に収めること。**（2026-08-17 辻さんのご指示）
+       「持出か返却か・案件名・倍率・直近で読んだ機材名」は、
+       **指を動かさずに全部見えること。**
+       現場は片手にQR、片手にスマホです。スクロールさせてはいけません。
+
+     ★★ そのために、画面全体を**縦の箱**にして、
+       **スクロールしてよいのは機材の一覧だけ**にします。
+       `100dvh` は、スマホのアドレスバーが出入りしても高さが狂わない書き方です。
+       効かない古い端末のために `100vh` も先に書いておきます。 */
+  html,body{ height:100vh; height:100dvh; }
   body{ margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
-        background:var(--bg); color:#222; }
-  header{ position:sticky; top:0; z-index:10; background:#fff; border-bottom:1px solid var(--bd);
-          padding:10px 12px; box-shadow:0 2px 4px rgba(0,0,0,.05); }
-  h1{ font-size:15px; margin:0 0 6px; color:var(--pri); }
-  .order{ font-size:12px; color:#555; line-height:1.5; word-break:break-all; }
-  .modebar{ display:flex; gap:8px; margin-top:8px; }
-  .modebar button{ flex:1; padding:10px 0; font-size:13px; font-weight:bold;
+        background:var(--bg); color:#222;
+        display:flex; flex-direction:column; overflow:hidden; }
+
+  header{ background:#fff; border-bottom:1px solid var(--bd); padding:6px 10px 8px;
+          flex:0 0 auto; }
+  .modebar{ display:flex; gap:6px; }
+  .modebar button{ flex:1; padding:9px 0; font-size:14px; font-weight:bold;
                    border:1px solid var(--pri); background:#fff; color:var(--pri); border-radius:6px; }
   .modebar button.on{ background:var(--pri); color:#fff; }
-  .bar{ display:flex; align-items:center; gap:8px; padding:8px 12px; background:#fff;
-        border-bottom:1px solid var(--bd); }
-  .prog{ font-weight:bold; font-size:14px; }
-  .prog small{ color:#888; font-weight:normal; }
-  #reader{ display:none; background:#000; }
-  #reader video{ width:100% !important; }
-  .list{ padding:8px 10px 140px; }
+  /* ★ 案件名は**1行**。長くても折り返さず、はみ出しは … にする（高さを動かさないため） */
+  .order{ font-size:12px; color:#333; margin-top:6px;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .order small{ color:#777; }
+
+  .bar{ display:flex; align-items:center; gap:8px; padding:6px 10px; background:#fff;
+        border-bottom:1px solid var(--bd); flex:0 0 auto; }
+  .prog{ font-weight:bold; font-size:14px; white-space:nowrap; }
+  .prog small{ color:#888; font-weight:normal; font-size:11px; }
+
+  /* ★★★ **カメラは画面の3分の1まで。**（2026-08-17 辻さんのご指示）
+       前は縦いっぱいに広がり、下の欄がスクロールしないと読めませんでした。 */
+  #reader{ display:none; background:#000; flex:0 0 auto; height:33vh; height:33dvh;
+           overflow:hidden; position:relative; }
+  #reader video{ width:100% !important; height:100% !important; object-fit:cover; }
+  #reader canvas{ display:none; }
+
+  /* 倍率と、直近で読んだもの。**どちらも1行**で、常に同じ高さを取る */
+  #zoombar{ display:flex; align-items:center; gap:6px; padding:5px 10px; background:#fafbfc;
+            border-bottom:1px solid #eee; flex:0 0 auto; font-size:11px; color:#5f6368;
+            white-space:nowrap; overflow:hidden; }
+  #zoombar button{ padding:5px 11px; font-size:12px; font-weight:bold; border-radius:6px;
+                   border:1px solid var(--pri); background:#fff; color:var(--pri); }
+  #zoombar button.on{ background:var(--pri); color:#fff; }
+  #last{ flex:0 0 auto; font-size:13px; padding:6px 10px; background:#fff;
+         border-bottom:1px solid var(--bd); line-height:1.4;
+         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #last b{ font-size:14px; }
+  #last small{ color:#9aa0a6; font-weight:normal; font-size:10px; margin-left:6px; }
+
+  /* ★ ここだけスクロールしてよい */
+  .list{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 10px 12px; }
   .item{ display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--bd);
-         border-radius:8px; padding:12px; margin-bottom:8px; }
+         border-radius:8px; padding:10px 12px; margin-bottom:6px; }
   .item.checked{ background:#e6f4ea; border-color:#b7e1c4; }
   .item.extra{ background:#fff8e1; border-color:#ffe082; }
   .item .nm{ flex:1; min-width:0; }
   .item .nm b{ font-size:14px; display:block; word-break:break-all; }
   .item .nm span{ font-size:11px; color:#777; }
-  .mark{ width:28px; height:28px; border-radius:50%; border:2px solid #bbb; flex-shrink:0;
+  .mark{ width:26px; height:26px; border-radius:50%; border:2px solid #bbb; flex-shrink:0;
          display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold; }
   .item.checked .mark{ background:var(--ok); border-color:var(--ok); }
-  .foot{ position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--bd);
-         padding:10px 12px; display:flex; gap:8px; box-shadow:0 -2px 6px rgba(0,0,0,.06); }
-  .foot input{ flex:1; padding:12px; border:1px solid var(--bd); border-radius:6px;
+
+  .foot{ flex:0 0 auto; background:#fff; border-top:1px solid var(--bd);
+         padding:8px 10px; display:flex; gap:6px; box-shadow:0 -2px 6px rgba(0,0,0,.06); }
+  .foot input{ flex:1; padding:11px; border:1px solid var(--bd); border-radius:6px;
                font-size:14px; min-width:0; }
-  .btn{ padding:12px 14px; border:none; border-radius:8px; font-weight:bold; font-size:14px; }
+  .btn{ padding:11px 13px; border:none; border-radius:8px; font-weight:bold; font-size:14px; }
   .btn.scan{ background:var(--pri); color:#fff; }
   .btn.save{ background:var(--ok); color:#fff; }
   .msg{ padding:20px; text-align:center; color:#555; font-size:13px; line-height:1.8; }
   .err{ margin:12px; padding:14px; background:#fce8e6; color:#c5221f; border-radius:8px;
         font-size:13px; line-height:1.8; white-space:pre-wrap; }
-  .toast{ position:fixed; top:120px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.85);
-          color:#fff; padding:12px 18px; border-radius:24px; font-weight:bold; font-size:14px;
+  .toast{ position:fixed; left:50%; bottom:78px; transform:translateX(-50%); background:rgba(0,0,0,.85);
+          color:#fff; padding:10px 16px; border-radius:24px; font-weight:bold; font-size:14px;
           z-index:50; display:none; max-width:90%; text-align:center; }
   .toast.ok{ background:var(--ok); } .toast.warn{ background:var(--warn); } .toast.dup{ background:#e8930c; }
-  .pending{ background:#fff3cd; color:#856404; font-size:12px; text-align:center; padding:8px; display:none; }
+  .pending{ background:#fff3cd; color:#856404; font-size:12px; text-align:center; padding:6px;
+            display:none; flex:0 0 auto; }
+  #warnbar{ flex:0 0 auto; }
+  #ver{ flex:0 0 auto; text-align:center; font-size:10px; color:#9aa0a6; padding:3px 4px;
+        background:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 </style>
 </head>
 <body>
 
+<!-- ★★★ **上から順に、指を動かさずに全部見えること。**
+       ① 持ち出しか返却か　② 案件名　③ 進み具合　④ 倍率　⑤ 直近で読んだ機材名 -->
 <header>
-  <h1>機材 持出・返却チェック</h1>
-  <div class="order" id="orderInfo">読み込み中…</div>
   <div class="modebar">
     <button id="mOut" class="on">持ち出し</button>
     <button id="mRet">返却</button>
   </div>
+  <div class="order" id="orderInfo">読み込み中…</div>
 </header>
 
 <div class="bar">
@@ -81,31 +123,29 @@
 </div>
 
 <div id="reader"></div>
-<!-- ★ カメラのズーム（使える端末でだけボタンが出ます） -->
-<div id="zoombar" style="display:none;align-items:center;padding:8px 12px;
-                         border-bottom:1px solid #eee;background:#fafbfc;"></div>
-<!-- ★★★ **読んだものを、必ず見せること。**（2026-08-16）
-     辻さんから「読ませても反応しません」と言われました。
-     知らせは1.8秒で消えるので、**見逃すと手がかりがゼロ**です。
-     読めたのか／読めたが弾いたのか／そもそも読めていないのか、
-     ここを見れば分かるようにします。 -->
-<div id="last" style="display:none;font-size:12px;padding:8px 12px;border-bottom:1px solid #eee;
-                      background:#fafbfc;word-break:break-all;line-height:1.6;"></div>
+<!-- ★ 倍率。**使えない端末でも、この行は必ず出します。**
+     出ていないと「押す場所が無い」のか「効かない」のかが分かりません -->
+<div id="zoombar" style="display:none;"></div>
+<!-- ★★★★ **直近で読んだ機材名**（2026-08-17 辻さんのご指示）
+     以前は読んだ文字（H:0D5FAED4）を主役にしていました。
+     現場が知りたいのは**どの機材が付いたか**です。名前を主役にします。
+     読んだ文字は、原因を追うときに要るので、小さく後ろに残します。 -->
+<div id="last">直近： <span style="color:#9aa0a6;">まだ読んでいません</span></div>
 <div class="pending" id="pending">まだ送れていないチェックがあります。「保存」を押してください。</div>
 <!-- ★★★ 仕度が整っていないことを、**読ませる前に**言う（2026-08-16） -->
 <div id="warnbar" style="display:none;background:#fce8e6;color:#c5221f;border-bottom:1px solid #f5c6c2;
-                         padding:10px 12px;font-size:12px;line-height:1.8;white-space:pre-wrap;"></div>
+                         padding:8px 10px;font-size:12px;line-height:1.6;white-space:pre-wrap;"></div>
 
 <div class="list" id="list"><div class="msg">読み込み中…</div></div>
 
 <div class="foot">
   <input id="manual" placeholder="管理番号を手で入れる" inputmode="text">
-  <button class="btn scan" id="manualBtn" style="padding:12px;">追加</button>
+  <button class="btn scan" id="manualBtn" style="padding:11px;">追加</button>
   <button class="btn save" id="saveBtn">保存</button>
 </div>
 
 <!-- ★ どの版のサーバーに話しかけているか。2つめのデプロイの更新忘れに気づくため -->
-<div id="ver" style="text-align:center;font-size:11px;color:#9aa0a6;padding:4px 0 8px;"></div>
+<div id="ver"></div>
 
 <div class="toast" id="toast"></div>
 
@@ -120,7 +160,9 @@
 //   サーバーの版とは別物です。GitHub の差し替えを忘れると、
 //   ここだけ古いまま気づけません。**直したら必ず1つ上げること。**
 //     C7 … カメラの指定を鍵1つに直した（3つ渡してカメラが開かなかった件）
-var 画面の版 = 'C7';
+//     C8 … 行き先（2つめのデプロイ）を、いまのものに合わせた（2026-08-17）
+//     C9 … 1画面に収めた／読むたびに保存して中断から続けられるようにした（2026-08-17）
+var 画面の版 = 'C9';
 
 var API_URL = 'https://script.google.com/macros/s/AKfycby9f0sGKqgR0FraZSbQs1BX04flmJqpLdERVpFLuEDkhUTyv88NXoma8o4Sq93nGyo/exec';
 
@@ -130,9 +172,13 @@ var TOKEN = qs.get('t') || '';
 
 var 控えの鍵   = 'hcx_check_' + TOKEN;
 var 未送信の鍵 = 'hcx_pending_' + TOKEN;
+var tick未送信の鍵 = 'hcx_ticks_' + TOKEN;
 var 記録者の鍵 = 'hcx_check_by';
 
-var state = { order: null, items: [], mode: 'out' };
+var state = { order: null, items: [], mode: 'out',
+              // ★ サーバーに残っている「済み」。{ outbound:{eqId:{state,time}}, ret:{…} }
+              進み: { outbound: {}, ret: {} } };
+var 未送信のtick_ = [];        // 電波が悪くて送れなかったぶん
 var 読み取り中 = false;
 var スキャナ = null;
 
@@ -178,6 +224,10 @@ document.addEventListener('DOMContentLoaded', function () {
     return;
   }
   if (localStorage.getItem(未送信の鍵)) $('pending').style.display = 'block';
+  // ★ 前回、電波が悪くて送れなかった1点ぶんの記録を拾って、送り直す
+  try { 未送信のtick_ = JSON.parse(localStorage.getItem(tick未送信の鍵) || '[]') || []; }
+  catch (e) { 未送信のtick_ = []; }
+  if (未送信のtick_.length) たまったtickを送る_();
   素性を出す('', '読み込み中…');      // ★ 読む前から、行き先だけは見えるようにする
   一覧を読む();
 });
@@ -205,10 +255,16 @@ function 一覧を読む() {
         return { eqId: x.eqId, name: x.name, no: x.no, category: x.category,
                  qr: x.qr || '', checked: false, extra: false };
       });
+      // ★★★ **前回の続きを戻します。**（2026-08-17 辻さんのご指示）
+      //   現場では、点検の途中で電話が入る・電池が切れる・アプリが落ちる、が普通に起きます。
+      //   そこまでの手間を捨てさせないこと。
+      state.進み = d.progress || { outbound: {}, ret: {} };
       localStorage.setItem(控えの鍵, JSON.stringify(
         { order: d.order, items: d.items, 印たち: state.印たち, at: Date.now() }));
       案件を出す();
+      続きを当てる_();
       描く();
+      続きを知らせる_();
       古いサーバーでないか確かめる_(d);
     })
     .catch(function (e) {
@@ -280,11 +336,52 @@ function 帯を消す_() {
   if (e) e.style.display = 'none';
 }
 
+/**
+ * 案件を**1行**で出す（2026-08-17）
+ *   高さを動かさないため、折り返しません。長ければ … で切れます。
+ *   ★ 切れて読めないと困るので、押したら全部を出します。
+ */
 function 案件を出す() {
   var o = state.order || {};
-  $('orderInfo').textContent = (o.staffName || '') + '　' + (o.projectName || '') + '\n' +
-                               短く(o.start) + ' 〜 ' + 短く(o.end);
-  $('orderInfo').style.whiteSpace = 'pre-wrap';
+  var e = $('orderInfo');
+  e.innerHTML = '';
+  var b = document.createElement('b');
+  b.textContent = o.projectName || '（案件名なし）';
+  var sm = document.createElement('small');
+  sm.textContent = '　' + (o.staffName || '') + '　' + 短く(o.start) + '〜' + 短く(o.end);
+  e.appendChild(b); e.appendChild(sm);
+  e.title = b.textContent + sm.textContent;
+  e.onclick = function () { alert(e.title); };
+}
+
+/**
+ * ★★★ サーバーに残っている「済み」を、いまのモードに当てる
+ *   予約に無いもの（予約外）が残っていたら、それも足して戻します。
+ *   **戻し忘れると、現場はもう一度ぜんぶ読み直すことになります。**
+ */
+function 続きを当てる_() {
+  var 箱 = (state.mode === 'return') ? (state.進み.ret || {}) : (state.進み.outbound || {});
+  state.items.forEach(function (it) {
+    var p = 箱[String(it.eqId)];
+    it.checked = !!(p && p.state !== '未チェック');
+  });
+  // ★ 一覧に無い機材が残っていたら、「予約外」として戻す
+  var ある = {};
+  state.items.forEach(function (it) { ある[String(it.eqId)] = true; });
+  Object.keys(箱).forEach(function (id) {
+    if (ある[id]) return;
+    if (箱[id].state === '未チェック') return;
+    state.items.push({ eqId: id, name: id, no: '', category: '', qr: '',
+                       checked: true, extra: true });
+  });
+}
+
+/** 続きから始まったことを、黙らずに言う */
+function 続きを知らせる_() {
+  var 済 = state.items.filter(function (x) { return x.checked; }).length;
+  if (!済) return;
+  知らせる('前回の続きから（' + 済 + ' 件は済み）', 'ok');
+  読んだものを出す('', '前回の続きから始めます（' + 済 + ' 件は済み）', 'ok', '');
 }
 
 function 短く(s) {
@@ -298,14 +395,19 @@ function 短く(s) {
 //
 // ★★ **切り替えたらチェックは消します。** 持出と返却は別の記録です。
 //   残したままにすると、返却のつもりで持出のチェックを保存してしまいます。
+/**
+ * ★★ 持出と返却は**別の記録**です。切り替えたら、そのモードのぶんを出します。
+ *
+ *   ★★★ 前は「切り替えるとチェックを消す」でした。**もう消しません。**（2026-08-17）
+ *     読むたびにサーバーへ残しているので、切り替えて戻っても済みは残ります。
+ *     消していたころは、間違えて押しただけで手間がまるごと飛びました。
+ */
 function モードを変える(m) {
   if (state.mode === m) return;
-  var 済 = state.items.filter(function (i) { return i.checked; }).length;
-  if (済 && !confirm('チェックした ' + 済 + ' 件を消して切り替えます。よろしいですか？')) return;
   state.mode = m;
   $('mOut').className = (m === 'out') ? 'on' : '';
   $('mRet').className = (m === 'return') ? 'on' : '';
-  state.items.forEach(function (i) { i.checked = false; });
+  続きを当てる_();
   描く();
 }
 
@@ -412,7 +514,7 @@ function 順に開く_(注文たち, i) {
     $('reader').style.display = 'none';
     if ($('zoombar')) $('zoombar').style.display = 'none';
     知らせる('カメラを開けませんでした: ' + ((e && e.message) || e), 'warn');
-    読んだものを出す('', 'カメラを開けませんでした：' + ((e && e.message) || e), 'warn');
+    読んだものを出す('', 'カメラを開けませんでした：' + ((e && e.message) || e), 'warn', '');
   });
 }
 
@@ -432,10 +534,21 @@ function 細かさを上げる_() {
   } catch (e) { /* 同上 */ }
 }
 
+/**
+ * 読み取る四角の大きさ
+ *
+ * ★★★ **カメラの箱の大きさから決めること。**（2026-08-17）
+ *   前は画面全体の大きさから決めていたので、カメラを画面の3分の1にしたあと
+ *   **枠が箱からはみ出しました**（辻さんのご指摘「枠が大きすぎる」）。
+ *   はみ出すと、部品が「枠が映像より大きい」と言って開かないことがあります。
+ */
 function 読み取り枠_() {
-  var 短い = Math.min(window.innerWidth, window.innerHeight);
-  var n = Math.max(180, Math.min(320, Math.round(短い * 0.7)));
-  return { width: n, height: n };
+  var 箱 = $('reader');
+  var w = (箱 && 箱.clientWidth)  || window.innerWidth;
+  var h = (箱 && 箱.clientHeight) || Math.round(window.innerHeight / 3);
+  var n = Math.round(Math.min(w, h) * 0.72);
+  return { width: Math.max(140, Math.min(260, n)),
+           height: Math.max(140, Math.min(260, n)) };
 }
 
 /**
@@ -455,29 +568,34 @@ function ズームを用意する_() {
   var 箱 = $('zoombar');
   if (!箱) return;
   箱.style.display = 'flex';
+  箱.innerHTML = '';
+  箱.appendChild(ふだんの字_('倍率'));
+
+  // ★★★ 使えない端末でも、**この行は必ず出します。**
+  //   何も出ないと「押す場所が無い」のか「効かない」のかが分かりません。
   if (!ズーム機能) {
-    箱.innerHTML = '<span style="font-size:11px;color:#5f6368;">' +
-      'この端末ではカメラのズームを使えません（写す細かさ: ' + (開いた細かさ_ || '—') + '）</span>';
+    箱.appendChild(ふだんの字_('1倍（この端末では変えられません）'));
+    箱.appendChild(ふだんの字_('／ 写す細かさ ' + (開いた細かさ_ || '—')));
     return;
   }
   var 最大 = 4;
   try { 最大 = Math.min(4, ズーム機能.max() || 4); } catch (e) { 最大 = 4; }
-  箱.innerHTML = '';
   [1, 2, 3].forEach(function (n) {
     if (n > 最大) return;
     var b = document.createElement('button');
-    b.className = 'btn';
-    b.style.cssText = 'padding:8px 14px;margin-right:6px;font-size:13px;' +
-      (n === 倍率 ? 'background:var(--pri);color:#fff;' : 'background:#fff;color:var(--pri);border:1px solid var(--pri);');
+    b.className = (n === 倍率) ? 'on' : '';
     b.textContent = n + '倍';
     b.addEventListener('click', function () { 倍率を変える_(n); });
     箱.appendChild(b);
   });
-  var 印 = document.createElement('span');
-  印.style.cssText = 'font-size:11px;color:#5f6368;margin-left:8px;';
-  印.textContent = '写す細かさ: ' + (開いた細かさ_ || '—');
-  箱.appendChild(印);
+  箱.appendChild(ふだんの字_('／ 写す細かさ ' + (開いた細かさ_ || '—')));
   倍率を当てる_();
+}
+
+function ふだんの字_(t) {
+  var e = document.createElement('span');
+  e.textContent = t;
+  return e;
 }
 
 function 倍率を変える_(n) {
@@ -547,13 +665,13 @@ function 読んだ(text) {
   if (!うちの印か(t)) {
     // ★ 印が届いていないのは**サーバーが古い**からです。QRのせいにしないこと
     if (!(state.印たち && state.印たち.length)) {
-      読んだものを出す(t, 'サーバーが古いため、確かめられません（上の赤い帯を見てください）', 'warn');
+      読んだものを出す(t, 'サーバーが古いため、確かめられません（上の赤い帯を見てください）', 'warn', '');
       知らせる('サーバーが古いままです', 'warn');
       鳴らす(false);
       return;
     }
     読んだものを出す(t, 'この案件の機材ではなく、うちのQRでもありません' +
-                        印の説明_(), 'warn');
+                        印の説明_(), 'warn', '');
     知らせる('この機材のQRではありません', 'warn');
     鳴らす(false);
     return;
@@ -605,16 +723,68 @@ function 一覧に当てる(値, 生) {
   if (!hit) return false;
 
   if (hit.checked) {
-    読んだものを出す(生, 'もう付いています：' + (hit.name || hit.eqId), 'ok');
+    読んだものを出す(生, 'もう付いています', 'ok', hit.name || hit.eqId);
     知らせる('もう読んでいます: ' + (hit.name || hit.eqId), 'dup');
     return true;
   }
   hit.checked = true;
   描く();
-  読んだものを出す(生, '✓ ' + (hit.name || hit.eqId) + ' に付けました', 'ok');
+  読んだものを出す(生, '✓ 付けました', 'ok', hit.name || hit.eqId);
   知らせる('✓ ' + (hit.name || hit.eqId), 'ok');
   鳴らす(true);
+  一点だけ残す_(hit);          // ★ 中断してもここまでは残る
   return true;
+}
+
+// ==========================================================
+//  1点ずつ残す（中断しても、続きから）
+// ==========================================================
+//
+// ★★★ **［保存］を押すまで何も残らない、をやめます。**（2026-08-17 辻さんのご指示）
+//   現場では、点検の途中で電話が入る・電池が切れる・アプリが落ちる、が普通に起きます。
+//   そこまで積み上げた手間を、こちらの都合で捨てさせないこと。
+//
+// ★★ **手は止めません。** 送るのは裏でやり、返事は待ちません。
+//   1点読むたびに1〜2秒固まったら、現場では使いものになりません。
+//
+// ★ 送れなかったぶんは端末に貯め、**次に送れたときに一緒に送ります。**
+//   最後に［保存］を押せば全件まとめて送るので、そこでも必ず追いつきます。
+
+function 一点だけ残す_(it) {
+  var 荷 = { eqId: it.eqId, checked: !!it.checked, extra: !!it.extra };
+  // ★ 手元の「済み」も、その場で更新する（モードを行き来しても消えないように）
+  var 箱 = (state.mode === 'return') ? 'ret' : 'outbound';
+  if (!state.進み[箱]) state.進み[箱] = {};
+  state.進み[箱][String(it.eqId)] = { state: it.extra ? '予約外' : 'OK',
+                                       time: new Date().toISOString() };
+  未送信のtick_.push({ mode: state.mode, one: 荷 });
+  tickを控える_();
+  たまったtickを送る_();
+}
+
+function tickを控える_() {
+  try {
+    if (未送信のtick_.length) localStorage.setItem(tick未送信の鍵, JSON.stringify(未送信のtick_));
+    else localStorage.removeItem(tick未送信の鍵);
+  } catch (e) { /* 端末がいっぱいでも、読み取りは続ける */ }
+}
+
+var 送信中_ = false;
+function たまったtickを送る_() {
+  if (送信中_ || !未送信のtick_.length) return;
+  送信中_ = true;
+  var 今 = 未送信のtick_[0];
+  呼ぶ('tick', { mode: 今.mode, one: 今.one })
+    .then(function () {
+      未送信のtick_.shift();
+      tickを控える_();
+      送信中_ = false;
+      if (未送信のtick_.length) たまったtickを送る_();   // 続けて送る
+    })
+    .catch(function () {
+      // ★ 送れないだけ。**読み取りは止めない。**次の1点か［保存］で追いつきます
+      送信中_ = false;
+    });
 }
 
 /** 一覧に無いものを、サーバーに聞く（黙って足しません） */
@@ -622,19 +792,21 @@ function サーバーに聞く(値, 生) {
   呼ぶ('find', { eqId: 値 })
     .then(function (d) {
       if (!d.found) {
-        読んだものを出す(生, 'この機材は登録されていません', 'warn');
+        読んだものを出す(生, 'この機材は登録されていません', 'warn', '');
         知らせる('登録の無い機材です: ' + 値, 'warn'); 鳴らす(false); return;
       }
       var m = d.item;
-      読んだものを出す(生, 'この案件の予約にありません：' + (m.name || m.eqId), 'warn');
+      読んだものを出す(生, 'この案件の予約にありません', 'warn', m.name || m.eqId);
       if (!confirm('この機材は、この案件の予約にありません。\n\n' +
                    (m.name || m.eqId) + '　' + (m.no || '') + '\n\n' +
                    '「予約外」として記録に足しますか？')) return;
-      state.items.push({ eqId: m.eqId, name: m.name, no: m.no, category: m.category,
-                         qr: m.qr || '', checked: true, extra: true });
+      var 足した = { eqId: m.eqId, name: m.name, no: m.no, category: m.category,
+                     qr: m.qr || '', checked: true, extra: true };
+      state.items.push(足した);
       描く();
-      読んだものを出す(生, '予約外として足しました：' + (m.name || m.eqId), 'ok');
+      読んだものを出す(生, '予約外として足しました', 'ok', m.name || m.eqId);
       知らせる('予約外として足しました', 'ok');
+      一点だけ残す_(足した);
     })
     .catch(function (e) { 知らせる(((e && e.message) || e), 'warn'); });
 }
@@ -678,12 +850,30 @@ function 素性を出す(v, ひとこと) {
  *     ④ 読めて、ちゃんと付いた
  *   **どれなのかが分からないと、手の打ちようがありません。**
  */
-function 読んだものを出す(生, 結果, 種類) {
+function 読んだものを出す(生, 結果, 種類, 機材名) {
   var e = $('last');
   if (!e) return;
   e.style.display = 'block';
   e.style.color = (種類 === 'ok') ? '#137333' : (種類 === 'warn' ? '#c5221f' : '#5f6368');
-  e.textContent = '最後に読んだもの： ' + (生 || '（なし）') + '　→　' + 結果;
+  e.innerHTML = '';
+  e.appendChild(document.createTextNode('直近： '));
+  // ★★★★ **機材名が主役。**（2026-08-17 辻さんのご指示）
+  //   現場が知りたいのは「どの機材が付いたか」であって、QRの文字ではありません。
+  if (機材名) {
+    var b = document.createElement('b');
+    b.textContent = 機材名;
+    e.appendChild(b);
+    e.appendChild(document.createTextNode('　' + 結果));
+  } else {
+    e.appendChild(document.createTextNode(結果));
+  }
+  // ★ 読んだ文字は、原因を追うときに要ります。小さく後ろに残すこと（消さない）
+  if (生) {
+    var sm = document.createElement('small');
+    sm.textContent = 生;
+    e.appendChild(sm);
+  }
+  e.title = e.textContent;
 }
 
 function 知らせる(text, kind) {
@@ -729,6 +919,9 @@ function 送る(荷物) {
     .then(function (d) {
       localStorage.removeItem(未送信の鍵);
       $('pending').style.display = 'none';
+      // ★ 全件まとめて送ったので、同じモードの1点ぶんの控えは用済み
+      未送信のtick_ = 未送信のtick_.filter(function (x) { return x.mode !== 荷物.mode; });
+      tickを控える_();
       知らせる('記録しました（済' + d.checked + ' / 未' + d.missing + '）', 'ok');
     })
     .catch(function (e) {
