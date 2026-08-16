@@ -51,12 +51,28 @@
   .prog{ font-weight:bold; font-size:14px; white-space:nowrap; }
   .prog small{ color:#888; font-weight:normal; font-size:11px; }
 
-  /* ★★★ **カメラは画面の3分の1まで。**（2026-08-17 辻さんのご指示）
-       前は縦いっぱいに広がり、下の欄がスクロールしないと読めませんでした。 */
-  #reader{ display:none; background:#000; flex:0 0 auto; height:33vh; height:33dvh;
-           overflow:hidden; position:relative; }
-  #reader video{ width:100% !important; height:100% !important; object-fit:cover; }
-  #reader canvas{ display:none; }
+  /* ★★★★ **カメラは画面の3分の1まで。**（2026-08-17 辻さんのご指示）
+       前は縦いっぱいに広がり、下の欄がスクロールしないと読めませんでした。
+
+     ★★★★ **ただし、映像そのものを縮めてはいけません。**（2026-08-17、私の失敗）
+       はじめ `height:100%` と `object-fit:cover` で押し込みました。
+       見た目は3分の1になりましたが、**QRに一切反応しなくなりました。**
+
+       読み取り部品は、映像のどこを読むかを
+           横の倍率 = videoWidth  ÷ 映像の見た目の幅
+           縦の倍率 = videoHeight ÷ 映像の見た目の高さ
+       と、**縦横それぞれ別に**計算します。
+       縦だけ押しつぶすと縦横の倍率がずれ、**読む場所も、縦横比も狂います。**
+       2.5倍に引き伸ばされたQRは、どうやっても読めません。
+
+     ★ そこで、**映像は素の形のまま**にして、**外の箱で切り取ります。**
+       箱（#readerBox）に高さを持たせて、はみ出したぶんを隠すだけ。
+       映像の見た目の縦横比は変わらないので、倍率は縦横で同じままです。
+       読み取る四角は映像の真ん中にできるので、
+       **その真ん中が箱に来るように、映像を上へずらします**（`カメラを真ん中に寄せる_`）。 */
+  #readerBox{ display:none; background:#000; flex:0 0 auto; height:33vh; height:33dvh;
+              overflow:hidden; position:relative; }
+  #reader video{ width:100% !important; }
 
   /* 倍率と、直近で読んだもの。**どちらも1行**で、常に同じ高さを取る */
   #zoombar{ display:flex; align-items:center; gap:6px; padding:5px 10px; background:#fafbfc;
@@ -122,7 +138,7 @@
   <button class="btn scan" id="scanBtn" style="margin-left:auto; padding:8px 12px;">カメラでスキャン</button>
 </div>
 
-<div id="reader"></div>
+<div id="readerBox"><div id="reader"></div></div>
 <!-- ★ 倍率。**使えない端末でも、この行は必ず出します。**
      出ていないと「押す場所が無い」のか「効かない」のかが分かりません -->
 <div id="zoombar" style="display:none;"></div>
@@ -162,7 +178,8 @@
 //     C7 … カメラの指定を鍵1つに直した（3つ渡してカメラが開かなかった件）
 //     C8 … 行き先（2つめのデプロイ）を、いまのものに合わせた（2026-08-17）
 //     C9 … 1画面に収めた／読むたびに保存して中断から続けられるようにした（2026-08-17）
-var 画面の版 = 'C9';
+//     C10 … ★C9で映像を押しつぶし、QRに反応しなくなったのを直した（2026-08-17）
+var 画面の版 = 'C10';
 
 var API_URL = 'https://script.google.com/macros/s/AKfycby9f0sGKqgR0FraZSbQs1BX04flmJqpLdERVpFLuEDkhUTyv88NXoma8o4Sq93nGyo/exec';
 
@@ -472,7 +489,7 @@ function スキャンの入り切り() {
     知らせる('カメラの部品が読み込めていません。手で入れてください', 'warn');
     return;
   }
-  $('reader').style.display = 'block';
+  $('readerBox').style.display = 'block';
   スキャナ = new Html5Qrcode('reader');
 
   // ★★★ **カメラの指定は「キーちょうど1つ」でなければ通りません。**
@@ -509,13 +526,46 @@ function 順に開く_(注文たち, i) {
     $('scanBtn').textContent = 'カメラを止める';
     細かさを上げる_();          // ★ 開いたあとに頼む。失敗しても、カメラは開いたまま
     ズームを用意する_();
+    カメラを真ん中に寄せる_();  // ★ 読み取る四角は映像の真ん中。そこを箱に見せる
   }).catch(function (e) {
     if (i + 1 < 注文たち.length) { 順に開く_(注文たち, i + 1); return; }
-    $('reader').style.display = 'none';
+    $('readerBox').style.display = 'none';
     if ($('zoombar')) $('zoombar').style.display = 'none';
     知らせる('カメラを開けませんでした: ' + ((e && e.message) || e), 'warn');
     読んだものを出す('', 'カメラを開けませんでした：' + ((e && e.message) || e), 'warn', '');
   });
+}
+
+/**
+ * ★★★★ 映像の真ん中（＝読み取る四角があるところ）を、箱に見せる
+ *
+ *   映像は素の形のまま（縦長のことが多い）なので、
+ *   箱（画面の3分の1）に入りきりません。**上へずらして真ん中を見せます。**
+ *
+ *   ★ ここでしくじっても、読み取りそのものは効いています。
+ *     見えている場所がずれるだけなので、**握りつぶさずに、ずらさないだけ**にします。
+ */
+function カメラを真ん中に寄せる_() {
+  try {
+    var 箱 = $('readerBox'), 中 = $('reader');
+    if (!箱 || !中) return;
+    var v = 中.querySelector('video');
+    if (!v) return;
+    var やる = function () {
+      var 映像の高さ = v.clientHeight || 中.clientHeight;
+      var 箱の高さ = 箱.clientHeight;
+      if (!映像の高さ || !箱の高さ) return;
+      var ずらす = Math.round((箱の高さ - 映像の高さ) / 2);
+      中.style.position = 'relative';
+      中.style.top = (ずらす < 0 ? ずらす : 0) + 'px';
+    };
+    やる();
+    // ★ 映像の大きさが決まるのは、再生が始まってから。少しあとにもう一度当てる
+    setTimeout(やる, 300);
+    setTimeout(やる, 1200);
+    window.removeEventListener('resize', カメラを真ん中に寄せる_);
+    window.addEventListener('resize', カメラを真ん中に寄せる_);
+  } catch (e) { /* ずらせないだけ。読み取りは効いています */ }
 }
 
 /**
@@ -543,9 +593,10 @@ function 細かさを上げる_() {
  *   はみ出すと、部品が「枠が映像より大きい」と言って開かないことがあります。
  */
 function 読み取り枠_() {
-  var 箱 = $('reader');
+  var 箱 = $('readerBox');
   var w = (箱 && 箱.clientWidth)  || window.innerWidth;
   var h = (箱 && 箱.clientHeight) || Math.round(window.innerHeight / 3);
+  // ★ 箱に収まる大きさにすること。箱より大きいと、四角の上下が見えません
   var n = Math.round(Math.min(w, h) * 0.72);
   return { width: Math.max(140, Math.min(260, n)),
            height: Math.max(140, Math.min(260, n)) };
@@ -617,12 +668,12 @@ function スキャンを止める() {
     スキャナ.clear();
     スキャナ = null;
     読み取り中 = false;
-    $('reader').style.display = 'none';
+    $('readerBox').style.display = 'none';
     $('scanBtn').textContent = 'カメラでスキャン';
     if ($('zoombar')) $('zoombar').style.display = 'none';
   }).catch(function () { /* 止められなくても、画面は閉じる */
     読み取り中 = false;
-    $('reader').style.display = 'none';
+    $('readerBox').style.display = 'none';
     $('scanBtn').textContent = 'カメラでスキャン';
     if ($('zoombar')) $('zoombar').style.display = 'none';
   });
