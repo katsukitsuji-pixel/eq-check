@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return;
   }
   if (localStorage.getItem(未送信の鍵)) $('pending').style.display = 'block';
+  素性を出す('', '読み込み中…');      // ★ 読む前から、行き先だけは見えるようにする
   一覧を読む();
 });
 
@@ -218,9 +219,15 @@ function 一覧を読む() {
       $('list').innerHTML = '';
       var d = document.createElement('div');
       d.className = 'err';
-      d.textContent = '機材の一覧を読めませんでした。\n' + ((e && e.message) || e) +
+      // ★★★ **理由をそのまま出すこと。**「読めませんでした」だけでは何も分かりません
+      d.textContent = '機材の一覧を読めませんでした。\n\n' +
+                      '【理由】' + ((e && e.message) || e) +
                       '\n\n電波を確かめて、画面を開き直してください。';
       $('list').appendChild(d);
+      // ★★★ **しくじったときこそ、素性を出すこと。**（2026-08-16）
+      //   版と印は、うまくいったときにしか出していませんでした。
+      //   **原因を知りたいのは、しくじったとき**です。逆でした。
+      素性を出す('', 'サーバーに届かないか、断られました');
     });
 }
 
@@ -452,14 +459,28 @@ function 鳴らす(よい) {
   try { if (navigator.vibrate) navigator.vibrate(よい ? 40 : [60, 60, 60]); } catch (e) {}
 }
 
-function 版を出す(v) {
+function 版を出す(v) { 素性を出す(v, ''); }
+
+/**
+ * この画面の素性を出す（版・印・行き先）
+ *
+ * ★★★ **うまくいかないときこそ、これが要ります。**（2026-08-16）
+ *   はじめは「読めたとき」にしか出していませんでした。**逆でした。**
+ *   読めなかったときは何も出ず、辻さんに手がかりが残りませんでした。
+ */
+function 素性を出す(v, ひとこと) {
   var e = document.getElementById('ver');
   if (!e) return;
-  // ★★ 印も出します。**3つの部品がそろっているか**を、ここで見比べられます
   var 印 = (state.印たち || []).join(' / ') || '（届いていません）';
-  e.textContent = (v ? ('サーバー ' + v) : '版が分かりません（古いデプロイかもしれません）') +
-                  '　／　印 ' + 印;
+  var 行 = [];
+  行.push(v ? ('サーバー ' + v) : '版 不明');
+  行.push('印 ' + 印);
+  // ★ どこへ話しかけているかも出す（2つめのデプロイのURLを取り違えていないか）
+  行.push('行き先 …' + String(API_URL).slice(-22));
+  if (ひとこと) 行.push(ひとこと);
+  e.textContent = 行.join('　／　');
   e.style.color = v ? '#9aa0a6' : '#c5221f';
+  e.style.display = 'block';
 }
 
 /**
