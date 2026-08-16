@@ -81,6 +81,13 @@
 </div>
 
 <div id="reader"></div>
+<!-- ★★★ **読んだものを、必ず見せること。**（2026-08-16）
+     辻さんから「読ませても反応しません」と言われました。
+     知らせは1.8秒で消えるので、**見逃すと手がかりがゼロ**です。
+     読めたのか／読めたが弾いたのか／そもそも読めていないのか、
+     ここを見れば分かるようにします。 -->
+<div id="last" style="display:none;font-size:12px;padding:8px 12px;border-bottom:1px solid #eee;
+                      background:#fafbfc;word-break:break-all;line-height:1.6;"></div>
 <div class="pending" id="pending">まだ送れていないチェックがあります。「保存」を押してください。</div>
 
 <div class="list" id="list"><div class="msg">読み込み中…</div></div>
@@ -91,6 +98,9 @@
   <button class="btn save" id="saveBtn">保存</button>
 </div>
 
+<!-- ★ どの版のサーバーに話しかけているか。2つめのデプロイの更新忘れに気づくため -->
+<div id="ver" style="text-align:center;font-size:11px;color:#9aa0a6;padding:4px 0 8px;"></div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -100,7 +110,7 @@
 //
 // ★ 機材システムのウェブアプリURL（末尾 /exec）。
 //   `?api=` を付けて開けば、その場で差し替えて試せます（試験用）。
-var API_URL = 'https://script.google.com/macros/s/AKfycbxRJz-dWrN4r-PUO9LzIUifMhINV36dSaanJxhKqmeitZESZYGJlG5cHgTJQXEirFw/exec';
+var API_URL = 'https://script.google.com/a/macros/humancentrix.com/s/AKfycbw8QxEBpspDD7zkk95lijdG-qhyzyJP-D6i-3xnmhQ-DC8fli03syxt_7rhT5Eveiw/exec';
 
 var qs = new URLSearchParams(location.search);
 if (qs.get('api')) API_URL = qs.get('api');
@@ -166,11 +176,24 @@ function 一覧を読む() {
   呼ぶ('order')
     .then(function (d) {
       state.order = d.order;
+      // ★★★ **印の読み方は、こちらに持ちません。**（2026-08-16）
+      //   サーバーから「印」と「機材ごとの文字」をもらい、突き合わせるだけにします。
+      //   ここに読み方を書き写すと、システム側と食い違ったときに
+      //   **貼り終わったラベルが全部読めなくなります。**しかも誰も気づけません。
+      // ★ 印は**複数**受け取ります（古い形のラベルも通すため）
+      state.印たち = (d.qrPrefixes && d.qrPrefixes.length) ? d.qrPrefixes
+                                                          : [d.qrPrefix].filter(Boolean);
+      // ★★★ **どの版のサーバーに話しかけているかを出します。**（2026-08-16）
+      //   この画面は「2つめのデプロイ」（公開範囲「全員」）を見ています。
+      //   デプロイは版に固定されるので、**そちらを更新し忘れると古いまま動きます。**
+      //   システム側の版と違っていたら、2つめのデプロイを更新してください。
+      版を出す(d.version);
       state.items = (d.items || []).map(function (x) {
         return { eqId: x.eqId, name: x.name, no: x.no, category: x.category,
-                 checked: false, extra: false };
+                 qr: x.qr || '', checked: false, extra: false };
       });
-      localStorage.setItem(控えの鍵, JSON.stringify({ order: d.order, items: d.items, at: Date.now() }));
+      localStorage.setItem(控えの鍵, JSON.stringify(
+        { order: d.order, items: d.items, 印たち: state.印たち, at: Date.now() }));
       案件を出す();
       描く();
     })
@@ -182,9 +205,10 @@ function 一覧を読む() {
       try { 控え = JSON.parse(localStorage.getItem(控えの鍵) || 'null'); } catch (e2) {}
       if (控え && 控え.items) {
         state.order = 控え.order;
+        state.印たち = 控え.印たち || [];
         state.items = 控え.items.map(function (x) {
           return { eqId: x.eqId, name: x.name, no: x.no, category: x.category,
-                   checked: false, extra: false };
+                   qr: x.qr || '', checked: false, extra: false };
         });
         案件を出す();
         描く();
@@ -307,9 +331,24 @@ var 直前 = { text: '', at: 0 };
 /**
  * QRを1つ読んだ
  *
- * ★★★ **うちのQRかどうかを、印で見分けます。**（`HCX:` で始まるもの）
- *   ただの機材IDにすると、よそのバーコードを読んだときに
- *   たまたま通ってしまいます。現場は「読めた＝合っている」と思って進みます。
+ * ─────────────────────────────────────────────────────────────
+ * ★★★ **順番が大事です。**（2026-08-16、辻さんに3度も同じ目に遭わせました）
+ *
+ *   ① **まず一覧と突き合わせる。**
+ *      サーバーがくれた「その案件の機材の文字」と同じなら、**それで確定**です。
+ *      印が何であろうと関係ありません。
+ *   ② 当たらなかったときだけ、「うちのQRか」を印で見ます。
+ *   ③ うちのQRなら、サーバーに何の機材かを聞きます。
+ *
+ *   ★ 前は①より先に②をやっていました。そのため、
+ *     **システム側とこの画面で印の決め方が1つずれただけで、
+ *     正しいラベルまで「この機材のQRではありません」**になりました。
+ *     ここは**3つの部品（システム／2つめのデプロイ／この画面）**がそろって
+ *     はじめて合う場所です。1つ古いだけで、そうなります。
+ *
+ *   ★★ 順番を入れ替えると、**ずれていても正しいラベルは通ります。**
+ *     印は「よそのバーコードを弾く」ためだけに使います。それが本来の役目です。
+ * ─────────────────────────────────────────────────────────────
  */
 function 読んだ(text) {
   var t = String(text || '').trim();
@@ -317,12 +356,35 @@ function 読んだ(text) {
   if (t === 直前.text && Date.now() - 直前.at < 2500) return;
   直前 = { text: t, at: Date.now() };
 
-  if (t.indexOf('HCX:') !== 0) {
+  // ① まず一覧と突き合わせる（当たれば、印は見ません）
+  if (一覧に当てる(t, t)) return;
+
+  // ② 当たらない。うちのQRか？
+  if (!うちの印か(t)) {
+    読んだものを出す(t, 'この案件の機材ではなく、うちのQRでもありません' +
+                        印の説明_(), 'warn');
     知らせる('この機材のQRではありません', 'warn');
     鳴らす(false);
     return;
   }
-  当てる(t.substring(4).trim());
+
+  // ③ うちのQRだが、この案件の一覧に無い → サーバーに聞く
+  サーバーに聞く(t, t);
+}
+
+/** うちのQRか（印は**サーバーからもらったもの**を使う。写しを作らない） */
+function うちの印か(t) {
+  var 印たち = state.印たち || [];
+  for (var i = 0; i < 印たち.length; i++) {
+    if (印たち[i] && t.indexOf(印たち[i]) === 0) return true;
+  }
+  return false;
+}
+
+function 印の説明_() {
+  var 印たち = (state.印たち || []).filter(Boolean);
+  return 印たち.length ? '（うちのQRは「' + 印たち.join('」か「') + '」で始まります）'
+                       : '（印がまだ届いていません。画面を開き直してください）';
 }
 
 function 手で足す() {
@@ -330,35 +392,57 @@ function 手で足す() {
   if (!v) return;
   $('manual').value = '';
   // ★ 手入力は、管理番号でも機材IDでも受けます（現場で使い分けさせない）
-  当てる(v);
+  if (一覧に当てる(v, v)) return;
+  サーバーに聞く(v, v);
 }
 
-function 当てる(値) {
-  var v = String(値 || '').toLowerCase();
+/**
+ * その案件の一覧と突き合わせる
+ * @return {boolean} 当たったか
+ */
+function 一覧に当てる(値, 生) {
+  var v = String(値 || '').trim().toLowerCase();
+  if (!v) return false;
   var hit = null;
   for (var i = 0; i < state.items.length; i++) {
     var it = state.items[i];
-    if (String(it.eqId).toLowerCase() === v || String(it.no).toLowerCase() === v) { hit = it; break; }
+    // ★★ **サーバーがくれた文字と突き合わせるだけ。**こちらで組み立てません
+    if (String(it.qr || '').toLowerCase() === v ||
+        String(it.eqId).toLowerCase() === v ||
+        String(it.no).toLowerCase() === v) { hit = it; break; }
   }
-  if (hit) {
-    if (hit.checked) { 知らせる('もう読んでいます: ' + (hit.name || hit.eqId), 'dup'); return; }
-    hit.checked = true;
-    描く();
-    知らせる('✓ ' + (hit.name || hit.eqId), 'ok');
-    鳴らす(true);
-    return;
+  if (!hit) return false;
+
+  if (hit.checked) {
+    読んだものを出す(生, 'もう付いています：' + (hit.name || hit.eqId), 'ok');
+    知らせる('もう読んでいます: ' + (hit.name || hit.eqId), 'dup');
+    return true;
   }
-  // ★★ 予約に無いもの。**黙って足しません。** 何なのかを出して、聞きます。
+  hit.checked = true;
+  描く();
+  読んだものを出す(生, '✓ ' + (hit.name || hit.eqId) + ' に付けました', 'ok');
+  知らせる('✓ ' + (hit.name || hit.eqId), 'ok');
+  鳴らす(true);
+  return true;
+}
+
+/** 一覧に無いものを、サーバーに聞く（黙って足しません） */
+function サーバーに聞く(値, 生) {
   呼ぶ('find', { eqId: 値 })
     .then(function (d) {
-      if (!d.found) { 知らせる('登録の無い機材です: ' + 値, 'warn'); 鳴らす(false); return; }
+      if (!d.found) {
+        読んだものを出す(生, 'この機材は登録されていません', 'warn');
+        知らせる('登録の無い機材です: ' + 値, 'warn'); 鳴らす(false); return;
+      }
       var m = d.item;
+      読んだものを出す(生, 'この案件の予約にありません：' + (m.name || m.eqId), 'warn');
       if (!confirm('この機材は、この案件の予約にありません。\n\n' +
                    (m.name || m.eqId) + '　' + (m.no || '') + '\n\n' +
                    '「予約外」として記録に足しますか？')) return;
       state.items.push({ eqId: m.eqId, name: m.name, no: m.no, category: m.category,
-                         checked: true, extra: true });
+                         qr: m.qr || '', checked: true, extra: true });
       描く();
+      読んだものを出す(生, '予約外として足しました：' + (m.name || m.eqId), 'ok');
       知らせる('予約外として足しました', 'ok');
     })
     .catch(function (e) { 知らせる(((e && e.message) || e), 'warn'); });
@@ -366,6 +450,34 @@ function 当てる(値) {
 
 function 鳴らす(よい) {
   try { if (navigator.vibrate) navigator.vibrate(よい ? 40 : [60, 60, 60]); } catch (e) {}
+}
+
+function 版を出す(v) {
+  var e = document.getElementById('ver');
+  if (!e) return;
+  // ★★ 印も出します。**3つの部品がそろっているか**を、ここで見比べられます
+  var 印 = (state.印たち || []).join(' / ') || '（届いていません）';
+  e.textContent = (v ? ('サーバー ' + v) : '版が分かりません（古いデプロイかもしれません）') +
+                  '　／　印 ' + 印;
+  e.style.color = v ? '#9aa0a6' : '#c5221f';
+}
+
+/**
+ * ★★★ 最後に読んだものを、消えない形で出す
+ *
+ *   「反応しません」の中身は、いつも次のどれかです。
+ *     ① そもそもカメラが読めていない（ここに何も出ません）
+ *     ② 読めたが、うちのQRではない（印が違う）
+ *     ③ 読めたが、この案件の予約に無い
+ *     ④ 読めて、ちゃんと付いた
+ *   **どれなのかが分からないと、手の打ちようがありません。**
+ */
+function 読んだものを出す(生, 結果, 種類) {
+  var e = $('last');
+  if (!e) return;
+  e.style.display = 'block';
+  e.style.color = (種類 === 'ok') ? '#137333' : (種類 === 'warn' ? '#c5221f' : '#5f6368');
+  e.textContent = '最後に読んだもの： ' + (生 || '（なし）') + '　→　' + 結果;
 }
 
 function 知らせる(text, kind) {
