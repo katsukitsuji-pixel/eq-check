@@ -87,69 +87,45 @@
   #last b{ font-size:14px; }
   #last small{ color:#9aa0a6; font-weight:normal; font-size:10px; margin-left:6px; }
 
-  /* ★ ここだけスクロールしてよい */
+  /* ★★★★ **チェックの画面そのものを、オーダーシートの形にします。**
+       （2026-08-17 辻さんのご指示「オーダーシートで確認している感じに」）
+       ★ 現場は紙のオーダーシートを見ながら機材を集めます。
+         画面が別の並びだと、目が行き来して間違えます。**同じ形にすること。**
+       ★★ ここだけスクロールしてよい。 */
   .list{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
-         padding:0; background:#fff; }
+         padding:0 0 16px; background:#f6f7f8; }
 
-  /* ★★★★ **1機材＝1行。できるだけ多く出すこと。**（2026-08-17 辻さんのご指示）
-       前は1台ずつ角丸の札にして、行間も空けていました。見た目は整いますが、
-       **一度に4〜5台しか見えません。** 14台の案件で、ほとんどが画面の外でした。
-       現場が見たいのは「あと何が残っているか」です。**数が見えることが役目**です。
-
-     ★ 札をやめて、下線1本で区切る形にしました。1行 30px 弱。
-       同じ場所に**倍以上**入ります。
-     ★★ ただし、指で押せる大きさは残すこと（縦 28px 以上）。手袋でも押せます。 */
-  .item{ display:flex; align-items:center; gap:8px; padding:5px 10px;
-         border-bottom:1px solid #eef0f2; min-height:30px; }
-  .item.checked{ background:#e6f4ea; }
-  .item.extra{ background:#fff8e1; }
-  /* ★ 1行に収める。長い名前は … で切る（折り返して2行にしない） */
-  .item .nm{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-             line-height:1.3; }
-  .item .nm b{ font-size:13px; font-weight:600; }
-  .item .nm span{ font-size:11px; color:#80868b; margin-left:6px; }
-  .mark{ width:20px; height:20px; border-radius:50%; border:2px solid #c4c7c5; flex-shrink:0;
-         display:flex; align-items:center; justify-content:center; color:#fff;
-         font-weight:bold; font-size:12px; }
-  .item.checked .mark{ background:var(--ok); border-color:var(--ok); }
-
-  .btn{ padding:11px 13px; border:none; border-radius:8px; font-weight:bold; font-size:14px; }
-
-  /* ★★★ **保存したあとに出す、オーダーシート**（2026-08-17 辻さんのご指示）
-       PCで刷る紙と**同じ中身**です（ケーブル・メディア・レンタルも入ります）。
-       スマホは横が狭いので、左右2列ではなく**上から順の1列**で出します。 */
-  #sheet{ display:none; flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
-          background:#fff; padding:0 0 16px; }
-  .sheetbar{ position:sticky; top:0; background:#fff; border-bottom:1px solid var(--bd);
-             padding:8px 10px; display:flex; align-items:center; gap:8px; z-index:2; }
-  .sheethead{ padding:8px 10px; border-bottom:1px solid var(--bd); font-size:12px; color:#333;
-              line-height:1.6; }
-  .sheethead b{ font-size:14px; }
-  /* ★★★★ **縦の罫線を、どの枠でもそろえること。**（2026-08-17 辻さんのご指示）
-       ★★★ `em` で幅を決めてはいけません。`em` は**その字の大きさ**が元なので、
-         見出し（10px）と中身（12px）で**別の幅**になり、線がずれます。
-         → **px** で決めます。字の大きさが変わっても、線の位置は動きません。
-       ★★ チェック欄は**罫線で囲みます**（PC版と同じ）。 */
-  .sheetblock{ margin:10px 10px 0; border:1px solid #444; }
+  .sheetblock{ margin:8px 8px 0; border:1px solid #444; background:#fff; }
   .sheetblock h4{ margin:0; padding:0; background:#e8eaed; font-size:12px;
                   border-bottom:1px solid #444; display:flex; align-items:stretch; }
-  .sheetblock h4 .nm{ flex:1; min-width:0; padding:4px 6px;
+  .sheetblock h4 .nm{ flex:1; min-width:0; padding:5px 6px; font-weight:bold;
                       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sheetrow{ display:flex; align-items:stretch; border-bottom:1px solid #dadce0;
-             font-size:13px; min-height:30px; }
+             font-size:13px; min-height:34px; }
   .sheetrow:last-child{ border-bottom:none; }
-  .sheetrow .t{ flex:1; min-width:0; padding:5px 6px; display:flex; align-items:center;
+  .sheetrow.checked{ background:#e6f4ea; }
+  .sheetrow.extra{ background:#fff8e1; }
+  /* ★ 押せる行と、押せない行（ケーブル等）を見た目で分ける */
+  .sheetrow.tap{ cursor:pointer; }
+  .sheetrow.notap .t{ color:#5f6368; }
+  .sheetrow .t{ flex:1; min-width:0; padding:6px; display:flex; align-items:center;
                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sheetrow .t small{ color:#80868b; margin-left:5px; }
-  /* ★ 幅・線の引き方を、見出しと中身で**同じ書き方**にしておくこと */
-  .sheetblock .w{ width:44px; flex:0 0 44px; box-sizing:border-box;
+
+  /* ★★★★ **印は大きく、太く。**（2026-08-17 辻さんのご指示）
+       小さいと現場で見落とします。印は見えてこそ意味があります。
+     ★★★ 幅は px で決めること（em は字の大きさで変わり、縦線がずれます）。 */
+  .sheetblock .w{ width:48px; flex:0 0 48px; box-sizing:border-box;
                   border-left:1px solid #444; text-align:center;
                   display:flex; align-items:center; justify-content:center;
-                  font-weight:bold; font-size:12px; }
-  .sheetblock h4 .w{ font-size:10px; font-weight:normal; color:#5f6368; }
-  .sheetrow .w.qr{ color:#1a73e8; }
-  .sheetrow .w.hand{ color:var(--ok); }
-  .sheetnote{ padding:10px; font-size:11px; color:#5f6368; line-height:1.7; }
+                  font-weight:bold; font-size:17px; line-height:1; }
+  .sheetblock h4 .w{ font-size:11px; font-weight:normal; color:#5f6368; }
+  .sheetrow .w.qr{ color:#1a73e8; font-size:15px; }
+  .sheetrow .w.hand{ color:var(--ok); font-size:22px; }   /* ✓ は細いので、さらに大きく */
+  .sheetrow .w.いま{ background:#fff; }
+  .sheetnote{ padding:10px 12px 4px; font-size:11px; color:#5f6368; line-height:1.7; }
+
+  .btn{ padding:11px 13px; border:none; border-radius:8px; font-weight:bold; font-size:14px; }
 
   /* ★★★ 保存中であることを、はっきり見せる */
   #busy{ display:none; flex:0 0 auto; background:#e8f0fe; border-bottom:1px solid #c6dafc;
@@ -219,8 +195,6 @@
   <div id="busytext">記録しています…</div>
 </div>
 
-<!-- ★ 保存したあとに出すオーダーシート（PCで刷る紙と同じ中身） -->
-<div id="sheet"></div>
 
 <!-- ★ どの版のサーバーに話しかけているか。2つめのデプロイの更新忘れに気づくため -->
 <div id="ver"></div>
@@ -246,7 +220,8 @@
 //     C13 … サーバーの版が足りないことを、読ませる前に言う（2026-08-17）
 //     C14 … 行き先を、作り直したデプロイに合わせた（2026-08-17）
 //     C15 … チェック欄を罫線で囲み、縦線をそろえた／保存中を見せるようにした（2026-08-17）
-var 画面の版 = 'C15';
+//     C16 … チェックの画面そのものをオーダーシートの形に／印を大きく太く（2026-08-17）
+var 画面の版 = 'C16';
 
 // ★★★★ **この画面が動くのに要る、サーバーの版**（2026-08-17）
 //
@@ -256,7 +231,7 @@ var 画面の版 = 'C15';
 //   「QRが読めない」「オーダーシートが出ない」と、**別々の不具合に見えます。**
 //
 //   → 版を突き合わせて、**読ませる前に**そう言います。
-var 要るサーバーの版 = 'V4.100.0';
+var 要るサーバーの版 = 'V4.107.0';
 
 var API_URL = 'https://script.google.com/macros/s/AKfycbwsqBNvhiazVL5hpBRgB01aaXXgwwLUE34u-GWDa71BJH3qg218xY8ToBpNcMwWB_U/exec';
 
@@ -351,6 +326,8 @@ function 一覧を読む() {
       //   現場では、点検の途中で電話が入る・電池が切れる・アプリが落ちる、が普通に起きます。
       //   そこまでの手間を捨てさせないこと。
       state.進み = d.progress || { outbound: {}, ret: {} };
+      // ★★★★ **チェックの画面そのものを、オーダーシートの形にします。**
+      state.枠 = d.sheet || null;
       localStorage.setItem(控えの鍵, JSON.stringify(
         { order: d.order, items: d.items, 印たち: state.印たち, at: Date.now() }));
       案件を出す();
@@ -486,6 +463,8 @@ function 続きを当てる_() {
   state.items.forEach(function (it) {
     var p = 箱[String(it.eqId)];
     it.checked = !!(p && p.state !== '未チェック');
+    // ★ サーバーから戻したものは、もう保存済み（＊を付けない）
+    it.保存済み = it.checked && !(p && p.wip);
     // ★ 読み方も戻すこと。戻さないと、続きから保存した拍子に
     //   **QRで読んだものが「手で押した」に化けます**
     it.how = (it.checked && p && p.how) ? p.how : (it.checked ? '手' : '');
@@ -497,7 +476,8 @@ function 続きを当てる_() {
     if (ある[id]) return;
     if (箱[id].state === '未チェック') return;
     state.items.push({ eqId: id, name: id, no: '', category: '', qr: '',
-                       checked: true, extra: true, how: 箱[id].how || '手' });
+                       checked: true, extra: true, how: 箱[id].how || '手',
+                       保存済み: !箱[id].wip });
   });
 }
 
@@ -542,42 +522,160 @@ function モードを変える(m) {
 function 描く() {
   var box = $('list');
   box.innerHTML = '';
-  if (!state.items.length) {
-    box.innerHTML = '<div class="msg">この案件に機材の予約がありません。</div>';
+
+  // ★ 枠がまだ届いていない（古いサーバー）なら、素の一覧で出す。
+  //   **黙って何も出さないことだけは、しないこと。**
+  if (!state.枠 || !(state.枠.left || state.枠.right)) { 素の一覧で描く_(box); 進み具合を出す_(); return; }
+
+  var 枠たち = (state.枠.left || []).concat(state.枠.right || []);
+  枠たち.forEach(function (b) { box.appendChild(枠を描く_(b)); });
+
+  // ★★ 予約に無いのに読んだもの（予約外）は、**必ずどこかに出すこと。**
+  //   出さないと、数が合わない原因が追えなくなります。
+  var 予約外 = state.items.filter(function (x) { return x.extra; });
+  if (予約外.length) {
+    box.appendChild(枠を描く_({ title: '予約外（読んで足したもの）',
+      items: 予約外.map(function (x) {
+        return { maker: '', name: x.name || x.eqId, no: x.no || '', eqId: x.eqId };
+      }) }));
   }
-  state.items.forEach(function (it, i) {
-    var d = document.createElement('div');
-    d.className = 'item' + (it.checked ? ' checked' : '') + (it.extra ? ' extra' : '');
-    d.addEventListener('click', function () {
+
+  var 注 = document.createElement('div');
+  注.className = 'sheetnote';
+  注.textContent = 'QR … QRを読んで付けた　／　✓ … 指で押して付けた　／　' +
+                   '＊ … まだ保存していない　／　行を押しても付け外しできます';
+  box.appendChild(注);
+
+  進み具合を出す_();
+}
+
+/** 枠（カテゴリ）1つぶん */
+function 枠を描く_(b) {
+  var 枠 = document.createElement('div');
+  枠.className = 'sheetblock';
+
+  var 見出し = document.createElement('h4');
+  var t = document.createElement('span');
+  t.className = 'nm';
+  t.textContent = b.title || '';
+  見出し.appendChild(t);
+  ['持出', '返却'].forEach(function (名, i) {
+    var w = document.createElement('span');
+    w.className = 'w';
+    w.textContent = 名;
+    // ★ いま付けているほうを、白地で目立たせる
+    if ((i === 0) === (state.mode !== 'return')) w.style.background = '#fff';
+    見出し.appendChild(w);
+  });
+  枠.appendChild(見出し);
+
+  var items = b.items || [];
+  if (!items.length) {
+    枠.appendChild(行を作る_({ name: '\u00a0' }, null));
+    return 枠;
+  }
+  items.forEach(function (e) {
+    // ★ 機材だけが押せます。ケーブル・メディア・レンタルには機材IDがありません
+    var it = e.eqId ? 手元の機材_(e.eqId) : null;
+    枠.appendChild(行を作る_(e, it));
+  });
+  return 枠;
+}
+
+function 手元の機材_(eqId) {
+  for (var i = 0; i < state.items.length; i++) {
+    if (String(state.items[i].eqId) === String(eqId)) return state.items[i];
+  }
+  return null;
+}
+
+function 行を作る_(e, it) {
+  var 行 = document.createElement('div');
+  行.className = 'sheetrow' + (it && it.checked ? ' checked' : '') +
+                 (it && it.extra ? ' extra' : '') + (it ? ' tap' : ' notap');
+
+  var 名 = document.createElement('div');
+  名.className = 't';
+  名.textContent = (e.maker ? e.maker + ' ' : '') + (e.name || '');
+  if (e.no) {
+    var sm = document.createElement('small');
+    sm.textContent = e.no;
+    名.appendChild(sm);
+  }
+  名.title = 名.textContent;
+  行.appendChild(名);
+
+  行.appendChild(印の欄_(印の中身_(it, 'out')));
+  行.appendChild(印の欄_(印の中身_(it, 'ret')));
+
+  if (it) {
+    行.addEventListener('click', function () {
       it.checked = !it.checked;
-      描く();
       // ★ 指で押して**付けた**ときだけ残します（外したときは残しません）
       if (it.checked) 一点だけ残す_(it, '手');
+      描く();
     });
+  }
+  return 行;
+}
 
-    // ★★★ **1行に収めること。**（2026-08-17 辻さんのご指示）
-    //   名前と管理番号を**同じ行に横並び**にします（前は2段でした）。
-    //   カテゴリは落としました。現場で機材を探すのに使うのは名前と管理番号です。
-    var nm = document.createElement('div');
-    nm.className = 'nm';
-    var b = document.createElement('b');
-    b.textContent = (it.extra ? '［外］' : '') + (it.name || it.eqId);
-    nm.appendChild(b);
-    if (it.no) {
-      var sp = document.createElement('span');
-      sp.textContent = it.no;
-      nm.appendChild(sp);
-    }
-    nm.title = b.textContent + (it.no ? ' ' + it.no : '');
+/**
+ * その機材の、その欄に出すもの
+ *
+ * ★ いま付けているほう（モード）は**手元の状態**を、
+ *   もう片方は**サーバーに残っているもの**を出します。
+ */
+function 印の中身_(it, 枠) {
+  if (!it) return null;
+  var いまの枠 = (state.mode === 'return') ? 'ret' : 'out';
+  if (枠 === いまの枠) {
+    if (!it.checked) return null;
+    return { state: it.extra ? '予約外' : 'OK', how: it.how || '手', wip: !it.保存済み };
+  }
+  var 箱 = (枠 === 'ret') ? (state.進み.ret || {}) : (state.進み.outbound || {});
+  return 箱[String(it.eqId)] || null;
+}
 
-    var mk = document.createElement('div');
-    mk.className = 'mark';
-    mk.textContent = it.checked ? '✓' : '';
+/** 「QR」「✓」「空」。＊は、まだ保存していないもの */
+function 印の欄_(x) {
+  var e = document.createElement('div');
+  e.className = 'w';
+  if (!x || !x.state || x.state === '未チェック') { e.innerHTML = '&nbsp;'; return e; }
+  var QRか = (x.how === 'QR');
+  e.className = 'w ' + (QRか ? 'qr' : 'hand');
+  e.textContent = (QRか ? 'QR' : '✓') + (x.wip ? '＊' : '');
+  return e;
+}
 
-    d.appendChild(nm); d.appendChild(mk);
-    box.appendChild(d);
-    void i;
+/**
+ * ★ 枠が届かないとき（古いサーバー）の、素の一覧
+ *   **黙って何も出さないことだけは、しないこと。**
+ */
+function 素の一覧で描く_(box) {
+  if (!state.items.length) {
+    box.innerHTML = '<div class="msg">この案件に機材の予約がありません。</div>';
+    return;
+  }
+  var 枠 = document.createElement('div');
+  枠.className = 'sheetblock';
+  var 見出し = document.createElement('h4');
+  var t = document.createElement('span');
+  t.className = 'nm';
+  t.textContent = '機材（オーダーシートの形が届いていません）';
+  見出し.appendChild(t);
+  ['持出', '返却'].forEach(function (名) {
+    var w = document.createElement('span'); w.className = 'w'; w.textContent = 名;
+    見出し.appendChild(w);
   });
+  枠.appendChild(見出し);
+  state.items.forEach(function (it) {
+    枠.appendChild(行を作る_({ maker: '', name: it.name || it.eqId, no: it.no || '',
+                               eqId: it.eqId }, it));
+  });
+  box.appendChild(枠);
+}
+
+function 進み具合を出す_() {
   var 済 = state.items.filter(function (x) { return x.checked; }).length;
   $('prog').innerHTML = 済 + ' / ' + state.items.length + ' <small>チェック済</small>';
 }
@@ -913,6 +1011,7 @@ function 一覧に当てる(値, 生, 読み方) {
 //   最後に［保存］を押せば全件まとめて送るので、そこでも必ず追いつきます。
 
 function 一点だけ残す_(it, 読み方) {
+  it.保存済み = false;                 // ★ 読んだばかりのものは、まだ保存前（＊が付く）
   var 荷 = { eqId: it.eqId, checked: !!it.checked, extra: !!it.extra,
              // ★★★ **QRで読んだか、指で押したか。**（2026-08-17 辻さんのご指示）
              //   「現物を見てQRを読んだ」のか「見ずに押した」のかは、
@@ -1091,161 +1190,11 @@ function 保存する() {
 //
 // ★★ スマホは横が狭いので、左右2列ではなく**上から順の1列**にします。
 
-var シートの中身_ = null;
-
-function オーダーシートを出す_() {
-  呼ぶ('sheet')
-    .then(function (d) { 待つのをやめる_(); シートを描く_(d); 画面を切り替える_('sheet'); })
-    .catch(function (e) {
-      // ★★ 出せなくても、**保存はもう通っています。**そこを取り違えさせないこと
-      待つのをやめる_();
-      var 訳 = (e && e.message) || String(e);
-      知らせる('保存はできました。オーダーシートを出せません', 'warn');
-      // ★★★★ **原因が「デプロイの更新忘れ」なら、そう言うこと。**（2026-08-17）
-      //   生のエラー（知らない依頼です: sheet）だけ出しても、
-      //   何をすればいいのか分かりません。
-      if (/知らない依頼/.test(訳)) {
-        帯を出す_('⚠️ サーバーが古いままです。オーダーシートはこの版では出せません。\n' +
-          'GASエディタ →［デプロイ］→［デプロイを管理］→ ' +
-          '**2つめ（QRチェック用API）の ✏️** → バージョン「新バージョン」→［デプロイ］\n' +
-          '※ 保存そのものは通っています。記録は残っています。');
-      }
-      読んだものを出す('', '保存はできました。オーダーシートを出せません：' + 訳, 'warn', '');
-    });
-}
-
-/** チェックの画面と、オーダーシートを行き来する */
-function 画面を切り替える_(どちら) {
-  var チェック側 = ['topbar', 'bar', 'readerBox', 'zoombar', 'last', 'pending', 'warnbar', 'list'];
-  // ★ `busy`（待ち表示）は、どちらの側にも入れないこと。
-  //   入れると、しまったつもりのものが「前の状態」として復活します
-  var シートか = (どちら === 'sheet');
-  チェック側.forEach(function (id) {
-    var e = $(id);
-    if (!e) return;
-    if (シートか) {
-      if (e.style.display !== 'none') e.dataset.前 = e.style.display || '';
-      e.style.display = 'none';
-    } else {
-      e.style.display = (e.dataset.前 !== undefined) ? e.dataset.前 : '';
-    }
-  });
-  $('sheet').style.display = シートか ? 'block' : 'none';
-  待つのをやめる_();
-}
-
-function シートを描く_(d) {
-  シートの中身_ = d;
-  var 箱 = $('sheet');
-  箱.innerHTML = '';
-
-  // ---- 上の帯（戻る） ----
-  var 帯 = document.createElement('div');
-  帯.className = 'sheetbar';
-  var 戻る = document.createElement('button');
-  戻る.className = 'btn scan';
-  戻る.style.padding = '8px 12px';
-  戻る.textContent = '◀ チェックに戻る';
-  戻る.addEventListener('click', function () { 画面を切り替える_('check'); });
-  var 題 = document.createElement('b');
-  題.style.fontSize = '14px';
-  題.textContent = 'オーダーシート';
-  帯.appendChild(戻る); 帯.appendChild(題);
-  箱.appendChild(帯);
-
-  // ---- 案件 ----
-  var h = d.header || {};
-  var 頭 = document.createElement('div');
-  頭.className = 'sheethead';
-  var hb = document.createElement('b');
-  hb.textContent = h.projectName || '（案件名なし）';
-  頭.appendChild(hb);
-  頭.appendChild(document.createElement('br'));
-  頭.appendChild(document.createTextNode(
-    '機材予約担当者: ' + (h.staffName || '') + '　' + 短く(h.start) + ' 〜 ' + 短く(h.end)));
-  箱.appendChild(頭);
-
-  // ---- 枠（左→右の順に、上から1列で）----
-  var 枠たち = (d.left || []).concat(d.right || []);
-  枠たち.forEach(function (b) { 箱.appendChild(枠を作る_(b, d.status || {})); });
-
-  // ★★ 予約に無いのに読んだもの（予約外）は、**必ずどこかに出すこと。**
-  //   出さないと、紙の上から消えます。数が合わない原因が追えなくなります。
-  var 予約外 = state.items.filter(function (x) { return x.extra; });
-  if (予約外.length) {
-    箱.appendChild(枠を作る_({ title: '予約外（読んで足したもの）',
-      items: 予約外.map(function (x) {
-        return { maker: '', name: x.name || x.eqId, no: x.no || '', eqId: x.eqId };
-      }) }, d.status || {}));
-  }
-
-  var 注 = document.createElement('div');
-  注.className = 'sheetnote';
-  注.textContent = 'QR … QRを読んで付けた　／　✓ … 指で押して付けた　／　' +
-                   '＊ … まだ保存していない　／　空欄 … まだ';
-  箱.appendChild(注);
-  箱.scrollTop = 0;
-}
-
-function 枠を作る_(b, 状態) {
-  var 枠 = document.createElement('div');
-  枠.className = 'sheetblock';
-  var 見出し = document.createElement('h4');
-  var t = document.createElement('span');
-  t.className = 'nm';
-  t.textContent = b.title || '';
-  var w1 = document.createElement('span'); w1.className = 'w'; w1.textContent = '持出';
-  var w2 = document.createElement('span'); w2.className = 'w'; w2.textContent = '返却';
-  見出し.appendChild(t); 見出し.appendChild(w1); 見出し.appendChild(w2);
-  枠.appendChild(見出し);
-
-  var items = b.items || [];
-  if (!items.length) {
-    // ★ 中身が無くても、**線は同じところに引くこと。**そろっていないと読めません
-    var 空 = document.createElement('div');
-    空.className = 'sheetrow';
-    var 空名 = document.createElement('div');
-    空名.className = 't';
-    空名.innerHTML = '&nbsp;';
-    空.appendChild(空名);
-    空.appendChild(印の欄_(null));
-    空.appendChild(印の欄_(null));
-    枠.appendChild(空);
-    return 枠;
-  }
-  items.forEach(function (e) {
-    var 行 = document.createElement('div');
-    行.className = 'sheetrow';
-    var 名 = document.createElement('div');
-    名.className = 't';
-    名.textContent = (e.maker ? e.maker + ' ' : '') + (e.name || '');
-    if (e.no) {
-      var sm = document.createElement('small');
-      sm.textContent = e.no;
-      名.appendChild(sm);
-    }
-    名.title = 名.textContent;
-    行.appendChild(名);
-    // ★ ケーブル・メディア・レンタルには機材IDがありません。欄は空のまま出します
-    var st = (e.eqId && 状態[e.eqId]) || {};
-    行.appendChild(印の欄_(st.out));
-    行.appendChild(印の欄_(st.ret));
-    枠.appendChild(行);
-  });
-  return 枠;
-}
-
-/** 「QR」「✓」「空」。＊は、まだ保存していないもの */
-function 印の欄_(x) {
-  var e = document.createElement('div');
-  e.className = 'w';
-  if (!x || !x.state || x.state === '未チェック') { e.innerHTML = '&nbsp;'; return e; }
-  var QRか = (x.how === 'QR');
-  e.className = 'w ' + (QRか ? 'qr' : 'hand');
-  e.textContent = (QRか ? 'QR' : '✓') + (x.wip ? '＊' : '');
-  return e;
-}
-
+/**
+ * ★★★★ 保存が通ったら、**その場で作り直します。**（2026-08-17）
+ *   チェックの画面そのものがオーダーシートなので、別の画面へ移りません。
+ *   サーバーから済み具合をもらい直して、印を確かなもの（＊なし）に置き換えます。
+ */
 /**
  * ★★★ いま何をしているかを見せる／しまう
  *
@@ -1263,6 +1212,34 @@ function 待つのをやめる_() {
   if (e) e.style.display = 'none';
 }
 
+function 保存のあと作り直す_() {
+  呼ぶ('order')
+    .then(function (d) {
+      待つのをやめる_();
+      state.進み = d.progress || state.進み;
+      state.枠 = d.sheet || state.枠;
+      // ★ 保存が通ったので、いま付いているものは「保存済み」（＊を外す）
+      state.items.forEach(function (x) { if (x.checked) x.保存済み = true; });
+      描く();
+      知らせる('オーダーシートを更新しました', 'ok');
+    })
+    .catch(function (e) {
+      // ★★ 作り直せなくても、**保存はもう通っています。**そこを取り違えさせないこと
+      待つのをやめる_();
+      var 訳 = (e && e.message) || String(e);
+      知らせる('保存はできました。表を作り直せません', 'warn');
+      // ★★★★ **原因が「デプロイの更新忘れ」なら、そう言うこと。**
+      //   生のエラーだけ出しても、何をすればいいのか分かりません。
+      if (/知らない依頼/.test(訳)) {
+        帯を出す_('⚠️ サーバーが古いままです。この版では表を作り直せません。\n' +
+          'GASエディタ →［デプロイ］→［デプロイを管理］→ ' +
+          '**2つめ（QRチェック用API）の ✏️** → バージョン「新バージョン」→［デプロイ］\n' +
+          '※ 保存そのものは通っています。記録は残っています。');
+      }
+      読んだものを出す('', '保存はできました。表を作り直せません：' + 訳, 'warn', '');
+    });
+}
+
 function 送る(荷物) {
   var b = $('saveBtn');
   b.disabled = true;
@@ -1278,8 +1255,8 @@ function 送る(荷物) {
       知らせる('記録しました（済' + d.checked + ' / 未' + d.missing + '）', 'ok');
       // ★★★ 保存できたら、そのままオーダーシートを出します（2026-08-17 辻さんのご指示）
       if (読み取り中) スキャンを止める();      // ★ 裏でカメラを回したままにしない
-      待たせる_('オーダーシートを作っています…');
-      オーダーシートを出す_();
+      待たせる_('オーダーシートを作り直しています…');
+      保存のあと作り直す_();
     })
     .catch(function (e) {
       // ★★★ **落としたものを、なかったことにしない。**
