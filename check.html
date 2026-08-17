@@ -125,19 +125,40 @@
   .sheethead{ padding:8px 10px; border-bottom:1px solid var(--bd); font-size:12px; color:#333;
               line-height:1.6; }
   .sheethead b{ font-size:14px; }
+  /* ★★★★ **縦の罫線を、どの枠でもそろえること。**（2026-08-17 辻さんのご指示）
+       ★★★ `em` で幅を決めてはいけません。`em` は**その字の大きさ**が元なので、
+         見出し（10px）と中身（12px）で**別の幅**になり、線がずれます。
+         → **px** で決めます。字の大きさが変わっても、線の位置は動きません。
+       ★★ チェック欄は**罫線で囲みます**（PC版と同じ）。 */
   .sheetblock{ margin:10px 10px 0; border:1px solid #444; }
-  .sheetblock h4{ margin:0; padding:4px 6px; background:#e8eaed; font-size:12px;
-                  border-bottom:1px solid #444; display:flex; align-items:center; }
-  .sheetblock h4 .w{ width:2.6em; text-align:center; font-size:10px; color:#5f6368; }
-  .sheetrow{ display:flex; align-items:center; padding:4px 6px; border-bottom:1px solid #dadce0;
-             font-size:13px; min-height:28px; }
+  .sheetblock h4{ margin:0; padding:0; background:#e8eaed; font-size:12px;
+                  border-bottom:1px solid #444; display:flex; align-items:stretch; }
+  .sheetblock h4 .nm{ flex:1; min-width:0; padding:4px 6px;
+                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sheetrow{ display:flex; align-items:stretch; border-bottom:1px solid #dadce0;
+             font-size:13px; min-height:30px; }
   .sheetrow:last-child{ border-bottom:none; }
-  .sheetrow .t{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sheetrow .t{ flex:1; min-width:0; padding:5px 6px; display:flex; align-items:center;
+                white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sheetrow .t small{ color:#80868b; margin-left:5px; }
-  .sheetrow .w{ width:2.6em; text-align:center; font-weight:bold; font-size:12px; }
+  /* ★ 幅・線の引き方を、見出しと中身で**同じ書き方**にしておくこと */
+  .sheetblock .w{ width:44px; flex:0 0 44px; box-sizing:border-box;
+                  border-left:1px solid #444; text-align:center;
+                  display:flex; align-items:center; justify-content:center;
+                  font-weight:bold; font-size:12px; }
+  .sheetblock h4 .w{ font-size:10px; font-weight:normal; color:#5f6368; }
   .sheetrow .w.qr{ color:#1a73e8; }
   .sheetrow .w.hand{ color:var(--ok); }
   .sheetnote{ padding:10px; font-size:11px; color:#5f6368; line-height:1.7; }
+
+  /* ★★★ 保存中であることを、はっきり見せる */
+  #busy{ display:none; flex:0 0 auto; background:#e8f0fe; border-bottom:1px solid #c6dafc;
+         padding:8px 10px; }
+  #busytext{ font-size:12px; color:#174ea6; font-weight:bold; }
+  .busybar{ height:4px; background:#c6dafc; border-radius:2px; overflow:hidden; margin-bottom:6px; }
+  .busybar span{ display:block; height:100%; width:40%; background:var(--pri);
+                 border-radius:2px; animation:hcxslide 1.1s linear infinite; }
+  @keyframes hcxslide{ 0%{ margin-left:-40%; } 100%{ margin-left:100%; } }
   .btn.scan{ background:var(--pri); color:#fff; }
   .btn.save{ background:var(--ok); color:#fff; }
   .msg{ padding:20px; text-align:center; color:#555; font-size:13px; line-height:1.8; }
@@ -190,6 +211,14 @@
 
 <div class="list" id="list"><div class="msg">読み込み中…</div></div>
 
+<!-- ★★★ **いま何をしているかを、必ず出すこと。**（2026-08-17 辻さんのご指示）
+     14台ぶんの記録を送るのに何秒かかかります。その間に何も出ないと、
+     押せていないのかと思って**もう一度押されます。** -->
+<div id="busy">
+  <div class="busybar"><span></span></div>
+  <div id="busytext">記録しています…</div>
+</div>
+
 <!-- ★ 保存したあとに出すオーダーシート（PCで刷る紙と同じ中身） -->
 <div id="sheet"></div>
 
@@ -216,7 +245,8 @@
 //     C12 … 保存をカメラの隣へ／保存したらオーダーシートを出す／QRと手を見分ける（2026-08-17）
 //     C13 … サーバーの版が足りないことを、読ませる前に言う（2026-08-17）
 //     C14 … 行き先を、作り直したデプロイに合わせた（2026-08-17）
-var 画面の版 = 'C14';
+//     C15 … チェック欄を罫線で囲み、縦線をそろえた／保存中を見せるようにした（2026-08-17）
+var 画面の版 = 'C15';
 
 // ★★★★ **この画面が動くのに要る、サーバーの版**（2026-08-17）
 //
@@ -1065,9 +1095,10 @@ var シートの中身_ = null;
 
 function オーダーシートを出す_() {
   呼ぶ('sheet')
-    .then(function (d) { シートを描く_(d); 画面を切り替える_('sheet'); })
+    .then(function (d) { 待つのをやめる_(); シートを描く_(d); 画面を切り替える_('sheet'); })
     .catch(function (e) {
       // ★★ 出せなくても、**保存はもう通っています。**そこを取り違えさせないこと
+      待つのをやめる_();
       var 訳 = (e && e.message) || String(e);
       知らせる('保存はできました。オーダーシートを出せません', 'warn');
       // ★★★★ **原因が「デプロイの更新忘れ」なら、そう言うこと。**（2026-08-17）
@@ -1086,6 +1117,8 @@ function オーダーシートを出す_() {
 /** チェックの画面と、オーダーシートを行き来する */
 function 画面を切り替える_(どちら) {
   var チェック側 = ['topbar', 'bar', 'readerBox', 'zoombar', 'last', 'pending', 'warnbar', 'list'];
+  // ★ `busy`（待ち表示）は、どちらの側にも入れないこと。
+  //   入れると、しまったつもりのものが「前の状態」として復活します
   var シートか = (どちら === 'sheet');
   チェック側.forEach(function (id) {
     var e = $(id);
@@ -1098,6 +1131,7 @@ function 画面を切り替える_(どちら) {
     }
   });
   $('sheet').style.display = シートか ? 'block' : 'none';
+  待つのをやめる_();
 }
 
 function シートを描く_(d) {
@@ -1158,7 +1192,7 @@ function 枠を作る_(b, 状態) {
   枠.className = 'sheetblock';
   var 見出し = document.createElement('h4');
   var t = document.createElement('span');
-  t.style.flex = '1';
+  t.className = 'nm';
   t.textContent = b.title || '';
   var w1 = document.createElement('span'); w1.className = 'w'; w1.textContent = '持出';
   var w2 = document.createElement('span'); w2.className = 'w'; w2.textContent = '返却';
@@ -1167,9 +1201,15 @@ function 枠を作る_(b, 状態) {
 
   var items = b.items || [];
   if (!items.length) {
+    // ★ 中身が無くても、**線は同じところに引くこと。**そろっていないと読めません
     var 空 = document.createElement('div');
     空.className = 'sheetrow';
-    空.innerHTML = '&nbsp;';
+    var 空名 = document.createElement('div');
+    空名.className = 't';
+    空名.innerHTML = '&nbsp;';
+    空.appendChild(空名);
+    空.appendChild(印の欄_(null));
+    空.appendChild(印の欄_(null));
     枠.appendChild(空);
     return 枠;
   }
@@ -1206,8 +1246,28 @@ function 印の欄_(x) {
   return e;
 }
 
+/**
+ * ★★★ いま何をしているかを見せる／しまう
+ *
+ *   現場では14台ぶんを送るのに何秒かかかります。
+ *   その間に何も出ないと、**押せていないと思ってもう一度押されます。**
+ */
+function 待たせる_(文) {
+  var e = $('busy');
+  if (!e) return;
+  $('busytext').textContent = 文;
+  e.style.display = 'block';
+}
+function 待つのをやめる_() {
+  var e = $('busy');
+  if (e) e.style.display = 'none';
+}
+
 function 送る(荷物) {
-  $('saveBtn').disabled = true;
+  var b = $('saveBtn');
+  b.disabled = true;
+  b.textContent = '保存中…';
+  待たせる_('記録しています… (' + (荷物.results || []).length + '件)');
   呼ぶ('save', 荷物)
     .then(function (d) {
       localStorage.removeItem(未送信の鍵);
@@ -1218,17 +1278,24 @@ function 送る(荷物) {
       知らせる('記録しました（済' + d.checked + ' / 未' + d.missing + '）', 'ok');
       // ★★★ 保存できたら、そのままオーダーシートを出します（2026-08-17 辻さんのご指示）
       if (読み取り中) スキャンを止める();      // ★ 裏でカメラを回したままにしない
+      待たせる_('オーダーシートを作っています…');
       オーダーシートを出す_();
     })
     .catch(function (e) {
       // ★★★ **落としたものを、なかったことにしない。**
       //   電波の悪い現場で押すことが前提です。端末に残して、次に押したときに送ります。
+      待つのをやめる_();
       localStorage.setItem(未送信の鍵, JSON.stringify(荷物));
       $('pending').style.display = 'block';
       alert('記録を送れませんでした。\n' + ((e && e.message) || e) +
             '\n\nこの端末に残してあります。電波の届くところで、もう一度「保存」を押してください。');
     })
-    .then(function () { $('saveBtn').disabled = false; });
+    .then(function () {
+      // ★ しくじってもボタンは必ず戻すこと。押せないまま現場に残さない
+      var b2 = $('saveBtn');
+      b2.disabled = false;
+      b2.textContent = '保存';
+    });
 }
 </script>
 </body>
