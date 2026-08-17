@@ -81,6 +81,11 @@
   #zoombar button{ padding:5px 11px; font-size:12px; font-weight:bold; border-radius:6px;
                    border:1px solid var(--pri); background:#fff; color:var(--pri); }
   #zoombar button.on{ background:var(--pri); color:#fff; }
+  /* ★★★★ **NG は、はっきり分かること。**（2026-08-17 辻さんのご指示）
+       現場は音も聞こえず、手袋で、明るいところで見ます。
+       小さな灰色の字では**通ったのと区別が付きません。** */
+  #last.ng{ background:#fce8e6; color:#c5221f; font-weight:bold; font-size:14px;
+            border-bottom:2px solid #c5221f; }
   #last{ flex:0 0 auto; font-size:13px; padding:6px 10px; background:#fff;
          border-bottom:1px solid var(--bd); line-height:1.4;
          white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -221,7 +226,8 @@
 //     C14 … 行き先を、作り直したデプロイに合わせた（2026-08-17）
 //     C15 … チェック欄を罫線で囲み、縦線をそろえた／保存中を見せるようにした（2026-08-17）
 //     C16 … チェックの画面そのものをオーダーシートの形に／印を大きく太く（2026-08-17）
-var 画面の版 = 'C16';
+//     C17 … リストに無いものを読んだら、はっきりNGと出す（2026-08-17）
+var 画面の版 = 'C17';
 
 // ★★★★ **この画面が動くのに要る、サーバーの版**（2026-08-17）
 //
@@ -934,14 +940,14 @@ function 読んだ(text) {
   if (!うちの印か(t)) {
     // ★ 印が届いていないのは**サーバーが古い**からです。QRのせいにしないこと
     if (!(state.印たち && state.印たち.length)) {
-      読んだものを出す(t, 'サーバーが古いため、確かめられません（上の赤い帯を見てください）', 'warn', '');
-      知らせる('サーバーが古いままです', 'warn');
+      読んだものを出す(t, 'サーバーが古いため、確かめられません（上の赤い帯を見てください）', 'ng', '');
+      知らせる('サーバーが古いままです', 'ng');
       鳴らす(false);
       return;
     }
     読んだものを出す(t, 'この案件の機材ではなく、うちのQRでもありません' +
-                        印の説明_(), 'warn', '');
-    知らせる('この機材のQRではありません', 'warn');
+                        印の説明_(), 'ng', '');
+    知らせる('うちのQRではありません', 'ng');
     鳴らす(false);
     return;
   }
@@ -1058,14 +1064,23 @@ function サーバーに聞く(値, 生) {
   呼ぶ('find', { eqId: 値 })
     .then(function (d) {
       if (!d.found) {
-        読んだものを出す(生, 'この機材は登録されていません', 'warn', '');
-        知らせる('登録の無い機材です: ' + 値, 'warn'); 鳴らす(false); return;
+        読んだものを出す(生, 'この機材は、機材マスタに載っていません', 'ng', '');
+        知らせる('登録の無い機材です', 'ng'); 鳴らす(false); return;
       }
       var m = d.item;
-      読んだものを出す(生, 'この案件の予約にありません', 'warn', m.name || m.eqId);
-      if (!confirm('この機材は、この案件の予約にありません。\n\n' +
+      // ★★★★ **リストに無いものは、はっきりNGと伝えること。**（2026-08-17 辻さんのご指示）
+      //   黙って確認の小窓だけ出していたので、
+      //   「読めたのか／通ったのか」が現場で分かりませんでした。
+      読んだものを出す(生, 'この案件の予約にありません', 'ng', m.name || m.eqId);
+      知らせる('❌ 予約にありません: ' + (m.name || m.eqId), 'ng');
+      鳴らす(false);
+      if (!confirm('❌ この機材は、この案件の予約にありません。\n\n' +
                    (m.name || m.eqId) + '　' + (m.no || '') + '\n\n' +
-                   '「予約外」として記録に足しますか？')) return;
+                   'それでも「予約外」として記録に足しますか？\n' +
+                   '（足すと、オーダーシートの下に「予約外」として出ます）')) {
+        読んだものを出す(生, '足しませんでした（予約にありません）', 'ng', m.name || m.eqId);
+        return;
+      }
       var 足した = { eqId: m.eqId, name: m.name, no: m.no, category: m.category,
                      qr: m.qr || '', checked: true, extra: true };
       state.items.push(足した);
@@ -1120,9 +1135,14 @@ function 読んだものを出す(生, 結果, 種類, 機材名) {
   var e = $('last');
   if (!e) return;
   e.style.display = 'block';
-  e.style.color = (種類 === 'ok') ? '#137333' : (種類 === 'warn' ? '#c5221f' : '#5f6368');
+  // ★★★★ **NG は、ひと目で分かること。**（2026-08-17 辻さんのご指示）
+  //   これまでは小さな赤い字だけでした。現場では通ったのと見分けが付きません。
+  var NGか = (種類 === 'ng');
+  e.className = NGか ? 'ng' : '';
+  e.style.color = NGか ? '' :
+                  ((種類 === 'ok') ? '#137333' : (種類 === 'warn' ? '#c5221f' : '#5f6368'));
   e.innerHTML = '';
-  e.appendChild(document.createTextNode('直近： '));
+  e.appendChild(document.createTextNode(NGか ? '❌ NG　' : '直近： '));
   // ★★★★ **機材名が主役。**（2026-08-17 辻さんのご指示）
   //   現場が知りたいのは「どの機材が付いたか」であって、QRの文字ではありません。
   if (機材名) {
@@ -1145,10 +1165,12 @@ function 読んだものを出す(生, 結果, 種類, 機材名) {
 function 知らせる(text, kind) {
   var t = $('toast');
   t.textContent = text;
-  t.className = 'toast ' + (kind || '');
+  t.className = 'toast ' + (kind === 'ng' ? 'warn' : (kind || ''));
   t.style.display = 'block';
   clearTimeout(t.__timer);
-  t.__timer = setTimeout(function () { t.style.display = 'none'; }, 1800);
+  // ★★ NG は**長めに**出します。1.8秒だと、手元を見ているあいだに消えます
+  t.__timer = setTimeout(function () { t.style.display = 'none'; },
+                         (kind === 'ng') ? 4000 : 1800);
 }
 
 // ==========================================================
