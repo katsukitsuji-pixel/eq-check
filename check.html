@@ -113,11 +113,31 @@
          font-weight:bold; font-size:12px; }
   .item.checked .mark{ background:var(--ok); border-color:var(--ok); }
 
-  .foot{ flex:0 0 auto; background:#fff; border-top:1px solid var(--bd);
-         padding:8px 10px; display:flex; gap:6px; box-shadow:0 -2px 6px rgba(0,0,0,.06); }
-  .foot input{ flex:1; padding:11px; border:1px solid var(--bd); border-radius:6px;
-               font-size:14px; min-width:0; }
   .btn{ padding:11px 13px; border:none; border-radius:8px; font-weight:bold; font-size:14px; }
+
+  /* ★★★ **保存したあとに出す、オーダーシート**（2026-08-17 辻さんのご指示）
+       PCで刷る紙と**同じ中身**です（ケーブル・メディア・レンタルも入ります）。
+       スマホは横が狭いので、左右2列ではなく**上から順の1列**で出します。 */
+  #sheet{ display:none; flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
+          background:#fff; padding:0 0 16px; }
+  .sheetbar{ position:sticky; top:0; background:#fff; border-bottom:1px solid var(--bd);
+             padding:8px 10px; display:flex; align-items:center; gap:8px; z-index:2; }
+  .sheethead{ padding:8px 10px; border-bottom:1px solid var(--bd); font-size:12px; color:#333;
+              line-height:1.6; }
+  .sheethead b{ font-size:14px; }
+  .sheetblock{ margin:10px 10px 0; border:1px solid #444; }
+  .sheetblock h4{ margin:0; padding:4px 6px; background:#e8eaed; font-size:12px;
+                  border-bottom:1px solid #444; display:flex; align-items:center; }
+  .sheetblock h4 .w{ width:2.6em; text-align:center; font-size:10px; color:#5f6368; }
+  .sheetrow{ display:flex; align-items:center; padding:4px 6px; border-bottom:1px solid #dadce0;
+             font-size:13px; min-height:28px; }
+  .sheetrow:last-child{ border-bottom:none; }
+  .sheetrow .t{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sheetrow .t small{ color:#80868b; margin-left:5px; }
+  .sheetrow .w{ width:2.6em; text-align:center; font-weight:bold; font-size:12px; }
+  .sheetrow .w.qr{ color:#1a73e8; }
+  .sheetrow .w.hand{ color:var(--ok); }
+  .sheetnote{ padding:10px; font-size:11px; color:#5f6368; line-height:1.7; }
   .btn.scan{ background:var(--pri); color:#fff; }
   .btn.save{ background:var(--ok); color:#fff; }
   .msg{ padding:20px; text-align:center; color:#555; font-size:13px; line-height:1.8; }
@@ -138,7 +158,7 @@
 
 <!-- ★★★ **上から順に、指を動かさずに全部見えること。**
        ① 持ち出しか返却か　② 案件名　③ 進み具合　④ 倍率　⑤ 直近で読んだ機材名 -->
-<header>
+<header id="topbar">
   <div class="modebar">
     <button id="mOut" class="on">持ち出し</button>
     <button id="mRet">返却</button>
@@ -146,9 +166,12 @@
   <div class="order" id="orderInfo">読み込み中…</div>
 </header>
 
+<!-- ★★ 保存は、カメラのボタンの隣に置きます（2026-08-17 辻さんのご指示）。
+     下に固定していた帯をやめたので、機材の一覧がそのぶん広く使えます。 -->
 <div class="bar">
   <div class="prog" id="prog">0 / 0 <small>チェック済</small></div>
-  <button class="btn scan" id="scanBtn" style="margin-left:auto; padding:8px 12px;">カメラでスキャン</button>
+  <button class="btn scan" id="scanBtn" style="margin-left:auto; padding:8px 10px;">カメラでスキャン</button>
+  <button class="btn save" id="saveBtn" style="padding:8px 14px;">保存</button>
 </div>
 
 <div id="readerBox"><div id="reader"></div></div>
@@ -167,12 +190,8 @@
 
 <div class="list" id="list"><div class="msg">読み込み中…</div></div>
 
-<!-- ★★ 手で入れる欄は外しました（2026-08-17 辻さんのご指示）。
-     ★ 読めない機材は、**一覧の行を指で押せば**チェックできます。
-       付け方が無くなったわけではありません。 -->
-<div class="foot">
-  <button class="btn save" id="saveBtn" style="width:100%;">保存</button>
-</div>
+<!-- ★ 保存したあとに出すオーダーシート（PCで刷る紙と同じ中身） -->
+<div id="sheet"></div>
 
 <!-- ★ どの版のサーバーに話しかけているか。2つめのデプロイの更新忘れに気づくため -->
 <div id="ver"></div>
@@ -194,7 +213,8 @@
 //     C9 … 1画面に収めた／読むたびに保存して中断から続けられるようにした（2026-08-17）
 //     C10 … ★C9で映像を押しつぶし、QRに反応しなくなったのを直した（2026-08-17）
 //     C11 … 一覧を1機材1行に／手で入れる欄を外した（2026-08-17）
-var 画面の版 = 'C11';
+//     C12 … 保存をカメラの隣へ／保存したらオーダーシートを出す／QRと手を見分ける（2026-08-17）
+var 画面の版 = 'C12';
 
 var API_URL = 'https://script.google.com/macros/s/AKfycby9f0sGKqgR0FraZSbQs1BX04flmJqpLdERVpFLuEDkhUTyv88NXoma8o4Sq93nGyo/exec';
 
@@ -394,6 +414,9 @@ function 続きを当てる_() {
   state.items.forEach(function (it) {
     var p = 箱[String(it.eqId)];
     it.checked = !!(p && p.state !== '未チェック');
+    // ★ 読み方も戻すこと。戻さないと、続きから保存した拍子に
+    //   **QRで読んだものが「手で押した」に化けます**
+    it.how = (it.checked && p && p.how) ? p.how : (it.checked ? '手' : '');
   });
   // ★ 一覧に無い機材が残っていたら、「予約外」として戻す
   var ある = {};
@@ -402,7 +425,7 @@ function 続きを当てる_() {
     if (ある[id]) return;
     if (箱[id].state === '未チェック') return;
     state.items.push({ eqId: id, name: id, no: '', category: '', qr: '',
-                       checked: true, extra: true });
+                       checked: true, extra: true, how: 箱[id].how || '手' });
   });
 }
 
@@ -453,7 +476,12 @@ function 描く() {
   state.items.forEach(function (it, i) {
     var d = document.createElement('div');
     d.className = 'item' + (it.checked ? ' checked' : '') + (it.extra ? ' extra' : '');
-    d.addEventListener('click', function () { it.checked = !it.checked; 描く(); });
+    d.addEventListener('click', function () {
+      it.checked = !it.checked;
+      描く();
+      // ★ 指で押して**付けた**ときだけ残します（外したときは残しません）
+      if (it.checked) 一点だけ残す_(it, '手');
+    });
 
     // ★★★ **1行に収めること。**（2026-08-17 辻さんのご指示）
     //   名前と管理番号を**同じ行に横並び**にします（前は2段でした）。
@@ -730,7 +758,7 @@ function 読んだ(text) {
   直前 = { text: t, at: Date.now() };
 
   // ① まず一覧と突き合わせる（当たれば、印は見ません）
-  if (一覧に当てる(t, t)) return;
+  if (一覧に当てる(t, t, 'QR')) return;
 
   // ② 当たらない。うちのQRか？
   if (!うちの印か(t)) {
@@ -771,7 +799,7 @@ function 印の説明_() {
  * その案件の一覧と突き合わせる
  * @return {boolean} 当たったか
  */
-function 一覧に当てる(値, 生) {
+function 一覧に当てる(値, 生, 読み方) {
   var v = String(値 || '').trim().toLowerCase();
   if (!v) return false;
   var hit = null;
@@ -794,7 +822,7 @@ function 一覧に当てる(値, 生) {
   読んだものを出す(生, '✓ 付けました', 'ok', hit.name || hit.eqId);
   知らせる('✓ ' + (hit.name || hit.eqId), 'ok');
   鳴らす(true);
-  一点だけ残す_(hit);          // ★ 中断してもここまでは残る
+  一点だけ残す_(hit, 読み方);   // ★ 中断してもここまでは残る
   return true;
 }
 
@@ -812,8 +840,13 @@ function 一覧に当てる(値, 生) {
 // ★ 送れなかったぶんは端末に貯め、**次に送れたときに一緒に送ります。**
 //   最後に［保存］を押せば全件まとめて送るので、そこでも必ず追いつきます。
 
-function 一点だけ残す_(it) {
-  var 荷 = { eqId: it.eqId, checked: !!it.checked, extra: !!it.extra };
+function 一点だけ残す_(it, 読み方) {
+  var 荷 = { eqId: it.eqId, checked: !!it.checked, extra: !!it.extra,
+             // ★★★ **QRで読んだか、指で押したか。**（2026-08-17 辻さんのご指示）
+             //   「現物を見てQRを読んだ」のか「見ずに押した」のかは、
+             //   積み忘れを追うときに意味が変わります。同じ扱いにしないこと。
+             how: (読み方 === 'QR') ? 'QR' : '手' };
+  it.how = 荷.how;
   // ★ 手元の「済み」も、その場で更新する（モードを行き来しても消えないように）
   var 箱 = (state.mode === 'return') ? 'ret' : 'outbound';
   if (!state.進み[箱]) state.進み[箱] = {};
@@ -868,7 +901,7 @@ function サーバーに聞く(値, 生) {
       描く();
       読んだものを出す(生, '予約外として足しました', 'ok', m.name || m.eqId);
       知らせる('予約外として足しました', 'ok');
-      一点だけ残す_(足した);
+      一点だけ残す_(足した, 'QR');
     })
     .catch(function (e) { 知らせる(((e && e.message) || e), 'warn'); });
 }
@@ -969,10 +1002,155 @@ function 保存する() {
   var 荷物 = {
     mode: state.mode,
     results: state.items.map(function (x) {
-      return { eqId: x.eqId, checked: !!x.checked, extra: !!x.extra };
+      return { eqId: x.eqId, checked: !!x.checked, extra: !!x.extra, how: x.how || '手' };
     })
   };
   送る(荷物);
+}
+
+// ==========================================================
+//  オーダーシート（保存したあとに出す）
+// ==========================================================
+//
+// ★★★ **PCで刷る紙と同じ中身**にします（2026-08-17 辻さんのご指示）。
+//   左右の枠の決まりは管理画面の設定が持っているので、**サーバーで組み立てて**もらいます。
+//   ここに決まりを書き写すと、PCの紙と現場の画面が**静かに食い違います。**
+//   （印（H:）を写さないのと同じ考えです）
+//
+// ★★ スマホは横が狭いので、左右2列ではなく**上から順の1列**にします。
+
+var シートの中身_ = null;
+
+function オーダーシートを出す_() {
+  呼ぶ('sheet')
+    .then(function (d) { シートを描く_(d); 画面を切り替える_('sheet'); })
+    .catch(function (e) {
+      // ★★ 出せなくても、**保存はもう通っています。**そこを取り違えさせないこと
+      知らせる('保存はできました。オーダーシートを出せません: ' + ((e && e.message) || e), 'warn');
+    });
+}
+
+/** チェックの画面と、オーダーシートを行き来する */
+function 画面を切り替える_(どちら) {
+  var チェック側 = ['topbar', 'bar', 'readerBox', 'zoombar', 'last', 'pending', 'warnbar', 'list'];
+  var シートか = (どちら === 'sheet');
+  チェック側.forEach(function (id) {
+    var e = $(id);
+    if (!e) return;
+    if (シートか) {
+      if (e.style.display !== 'none') e.dataset.前 = e.style.display || '';
+      e.style.display = 'none';
+    } else {
+      e.style.display = (e.dataset.前 !== undefined) ? e.dataset.前 : '';
+    }
+  });
+  $('sheet').style.display = シートか ? 'block' : 'none';
+}
+
+function シートを描く_(d) {
+  シートの中身_ = d;
+  var 箱 = $('sheet');
+  箱.innerHTML = '';
+
+  // ---- 上の帯（戻る） ----
+  var 帯 = document.createElement('div');
+  帯.className = 'sheetbar';
+  var 戻る = document.createElement('button');
+  戻る.className = 'btn scan';
+  戻る.style.padding = '8px 12px';
+  戻る.textContent = '◀ チェックに戻る';
+  戻る.addEventListener('click', function () { 画面を切り替える_('check'); });
+  var 題 = document.createElement('b');
+  題.style.fontSize = '14px';
+  題.textContent = 'オーダーシート';
+  帯.appendChild(戻る); 帯.appendChild(題);
+  箱.appendChild(帯);
+
+  // ---- 案件 ----
+  var h = d.header || {};
+  var 頭 = document.createElement('div');
+  頭.className = 'sheethead';
+  var hb = document.createElement('b');
+  hb.textContent = h.projectName || '（案件名なし）';
+  頭.appendChild(hb);
+  頭.appendChild(document.createElement('br'));
+  頭.appendChild(document.createTextNode(
+    '機材予約担当者: ' + (h.staffName || '') + '　' + 短く(h.start) + ' 〜 ' + 短く(h.end)));
+  箱.appendChild(頭);
+
+  // ---- 枠（左→右の順に、上から1列で）----
+  var 枠たち = (d.left || []).concat(d.right || []);
+  枠たち.forEach(function (b) { 箱.appendChild(枠を作る_(b, d.status || {})); });
+
+  // ★★ 予約に無いのに読んだもの（予約外）は、**必ずどこかに出すこと。**
+  //   出さないと、紙の上から消えます。数が合わない原因が追えなくなります。
+  var 予約外 = state.items.filter(function (x) { return x.extra; });
+  if (予約外.length) {
+    箱.appendChild(枠を作る_({ title: '予約外（読んで足したもの）',
+      items: 予約外.map(function (x) {
+        return { maker: '', name: x.name || x.eqId, no: x.no || '', eqId: x.eqId };
+      }) }, d.status || {}));
+  }
+
+  var 注 = document.createElement('div');
+  注.className = 'sheetnote';
+  注.textContent = 'QR … QRを読んで付けた　／　✓ … 指で押して付けた　／　' +
+                   '＊ … まだ保存していない　／　空欄 … まだ';
+  箱.appendChild(注);
+  箱.scrollTop = 0;
+}
+
+function 枠を作る_(b, 状態) {
+  var 枠 = document.createElement('div');
+  枠.className = 'sheetblock';
+  var 見出し = document.createElement('h4');
+  var t = document.createElement('span');
+  t.style.flex = '1';
+  t.textContent = b.title || '';
+  var w1 = document.createElement('span'); w1.className = 'w'; w1.textContent = '持出';
+  var w2 = document.createElement('span'); w2.className = 'w'; w2.textContent = '返却';
+  見出し.appendChild(t); 見出し.appendChild(w1); 見出し.appendChild(w2);
+  枠.appendChild(見出し);
+
+  var items = b.items || [];
+  if (!items.length) {
+    var 空 = document.createElement('div');
+    空.className = 'sheetrow';
+    空.innerHTML = '&nbsp;';
+    枠.appendChild(空);
+    return 枠;
+  }
+  items.forEach(function (e) {
+    var 行 = document.createElement('div');
+    行.className = 'sheetrow';
+    var 名 = document.createElement('div');
+    名.className = 't';
+    名.textContent = (e.maker ? e.maker + ' ' : '') + (e.name || '');
+    if (e.no) {
+      var sm = document.createElement('small');
+      sm.textContent = e.no;
+      名.appendChild(sm);
+    }
+    名.title = 名.textContent;
+    行.appendChild(名);
+    // ★ ケーブル・メディア・レンタルには機材IDがありません。欄は空のまま出します
+    var st = (e.eqId && 状態[e.eqId]) || {};
+    行.appendChild(印の欄_(st.out));
+    行.appendChild(印の欄_(st.ret));
+    枠.appendChild(行);
+  });
+  return 枠;
+}
+
+/** 「QR」「✓」「空」。＊は、まだ保存していないもの */
+function 印の欄_(x) {
+  var e = document.createElement('div');
+  e.className = 'w';
+  if (!x || !x.state || x.state === '未チェック') { e.innerHTML = '&nbsp;'; return e; }
+  var QRか = (x.how === 'QR');
+  e.className = 'w ' + (QRか ? 'qr' : 'hand');
+  e.textContent = (QRか ? 'QR' : '✓') + (x.wip ? '＊' : '');
+  return e;
 }
 
 function 送る(荷物) {
@@ -985,6 +1163,9 @@ function 送る(荷物) {
       未送信のtick_ = 未送信のtick_.filter(function (x) { return x.mode !== 荷物.mode; });
       tickを控える_();
       知らせる('記録しました（済' + d.checked + ' / 未' + d.missing + '）', 'ok');
+      // ★★★ 保存できたら、そのままオーダーシートを出します（2026-08-17 辻さんのご指示）
+      if (読み取り中) スキャンを止める();      // ★ 裏でカメラを回したままにしない
+      オーダーシートを出す_();
     })
     .catch(function (e) {
       // ★★★ **落としたものを、なかったことにしない。**
