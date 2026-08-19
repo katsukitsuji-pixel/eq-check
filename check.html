@@ -227,7 +227,9 @@
 //     C15 … チェック欄を罫線で囲み、縦線をそろえた／保存中を見せるようにした（2026-08-17）
 //     C16 … チェックの画面そのものをオーダーシートの形に／印を大きく太く（2026-08-17）
 //     C17 … リストに無いものを読んだら、はっきりNGと出す（2026-08-17）
-var 画面の版 = 'C17';
+//     C18 … 読み込みにかかった時間と、その内訳を出す（2026-08-19）
+//     C19 … 押した側（持出／返却）で開く（?m=return）（2026-08-19）
+var 画面の版 = 'C19';
 
 // ★★★★ **この画面が動くのに要る、サーバーの版**（2026-08-17）
 //
@@ -237,23 +239,31 @@ var 画面の版 = 'C17';
 //   「QRが読めない」「オーダーシートが出ない」と、**別々の不具合に見えます。**
 //
 //   → 版を突き合わせて、**読ませる前に**そう言います。
-var 要るサーバーの版 = 'V4.107.0';
+var 要るサーバーの版 = 'V4.129.0';   // ★ 押した側（?m=）を返せるのは、この版から
 
 var API_URL = 'https://script.google.com/macros/s/AKfycbwsqBNvhiazVL5hpBRgB01aaXXgwwLUE34u-GWDa71BJH3qg218xY8ToBpNcMwWB_U/exec';
 
 var qs = new URLSearchParams(location.search);
 if (qs.get('api')) API_URL = qs.get('api');
 var TOKEN = qs.get('t') || '';
+// ★★★★ **押した側（持出／返却）で開くこと。**（2026-08-19 辻さんのご指示）
+//   ［持出チェック］を押したのに返却の側で開いたら、**間違えて記録されます。**
+//   `?m=return` が付いていれば返却、無ければ持出です。
+var 最初の側_ = (qs.get('m') === 'return') ? 'return' : 'out';
 
 var 控えの鍵   = 'hcx_check_' + TOKEN;
 var 未送信の鍵 = 'hcx_pending_' + TOKEN;
 var tick未送信の鍵 = 'hcx_ticks_' + TOKEN;
 var 記録者の鍵 = 'hcx_check_by';
 
-var state = { order: null, items: [], mode: 'out',
+var state = { order: null, items: [], mode: 最初の側_,
               // ★ サーバーに残っている「済み」。{ outbound:{eqId:{state,time}}, ret:{…} }
               進み: { outbound: {}, ret: {} } };
 var 未送信のtick_ = [];        // 電波が悪くて送れなかったぶん
+// ★★★ **どこで待たされているかを、その場で見えるようにします。**（2026-08-19）
+//   「遅い」と言われても、当てずっぽうで直しては同じことを繰り返します。
+var 読み始め_ = 0;             // 押してから、絵が出るまで
+var 内訳_ = null;              // サーバーの中の内訳（ミリ秒）
 var 読み取り中 = false;
 var スキャナ = null;
 
@@ -286,6 +296,9 @@ function 呼ぶ(action, 追加) {
 //  起動
 // ==========================================================
 document.addEventListener('DOMContentLoaded', function () {
+  // ★ 開いた側に合わせて、ボタンの見た目もそろえること
+  $('mOut').className = (state.mode === 'out') ? 'on' : '';
+  $('mRet').className = (state.mode === 'return') ? 'on' : '';
   $('mOut').addEventListener('click', function () { モードを変える('out'); });
   $('mRet').addEventListener('click', function () { モードを変える('return'); });
   $('scanBtn').addEventListener('click', スキャンの入り切り);
@@ -309,6 +322,7 @@ document.addEventListener('DOMContentLoaded', function () {
 //  案件の機材を読む
 // ==========================================================
 function 一覧を読む() {
+  読み始め_ = Date.now();
   呼ぶ('order')
     .then(function (d) {
       state.order = d.order;
@@ -323,6 +337,7 @@ function 一覧を読む() {
       //   この画面は「2つめのデプロイ」（公開範囲「全員」）を見ています。
       //   デプロイは版に固定されるので、**そちらを更新し忘れると古いまま動きます。**
       //   システム側の版と違っていたら、2つめのデプロイを更新してください。
+      内訳_ = d.ms || null;      // ★ どこで待たされたかの内訳（サーバーが入れてきます）
       版を出す(d.version);
       state.items = (d.items || []).map(function (x) {
         return { eqId: x.eqId, name: x.name, no: x.no, category: x.category,
@@ -1115,6 +1130,13 @@ function 素性を出す(v, ひとこと) {
   行.push('印 ' + 印);
   // ★ どこへ話しかけているかも出す（2つめのデプロイのURLを取り違えていないか）
   行.push('行き先 …' + String(API_URL).slice(-22));
+  // ★ かかった時間を出す。**遅いときに、どこが遅いのかが分かること**
+  if (読み始め_) {
+    var 全 = ((Date.now() - 読み始め_) / 1000).toFixed(1) + '秒';
+    行.push('読み込み ' + 全 +
+            (内訳_ ? '（サーバー ' + Math.round(内訳_.合計) + 'ms＝予約' + 内訳_.予約 +
+                     '/済み' + 内訳_.済み + '/枠' + 内訳_.枠 + '）' : ''));
+  }
   if (ひとこと) 行.push(ひとこと);
   e.textContent = 行.join('　／　');
   e.style.color = v ? '#9aa0a6' : '#c5221f';
