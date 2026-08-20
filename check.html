@@ -37,6 +37,13 @@
 
   header{ background:#fff; border-bottom:1px solid var(--bd); padding:6px 10px 8px;
           flex:0 0 auto; }
+  /* ★★★★ 帰り道（2026-08-20 辻さんのご指示）。
+       読み取り画面は外（GitHub Pages）にあるので、**行きっぱなしになりがち**です。
+       ★ 押し間違えないよう、切り替え（持ち出し／返却）とは**別の行**に置きます。 */
+  .backbar{ display:flex; margin-bottom:6px; }
+  .backbar button{ padding:6px 10px; font-size:12px; font-weight:bold;
+                   border:1px solid var(--bd); background:#f1f3f4; color:#3c4043;
+                   border-radius:6px; }
   .modebar{ display:flex; gap:6px; }
   .modebar button{ flex:1; padding:9px 0; font-size:14px; font-weight:bold;
                    border:1px solid var(--pri); background:#fff; color:var(--pri); border-radius:6px; }
@@ -161,6 +168,10 @@
 <!-- ★★★ **上から順に、指を動かさずに全部見えること。**
        ① 持ち出しか返却か　② 案件名　③ 進み具合　④ 倍率　⑤ 直近で読んだ機材名 -->
 <header id="topbar">
+  <!-- ★ 帰り道が分からないときは、この行ごと出しません（押しても何も起きない道を作らない） -->
+  <div class="backbar" id="backbar" style="display:none;">
+    <button id="backBtn" type="button">◀ 機材リストに戻る</button>
+  </div>
   <div class="modebar">
     <button id="mOut" class="on">持ち出し</button>
     <button id="mRet">返却</button>
@@ -229,7 +240,8 @@
 //     C17 … リストに無いものを読んだら、はっきりNGと出す（2026-08-17）
 //     C18 … 読み込みにかかった時間と、その内訳を出す（2026-08-19）
 //     C19 … 押した側（持出／返却）で開く（?m=return）（2026-08-19）
-var 画面の版 = 'C19';
+//     C20 … 機材リストへの帰り道（?b=）／保存できたら戻るか聞く（2026-08-20）
+var 画面の版 = 'C20';
 
 // ★★★★ **この画面が動くのに要る、サーバーの版**（2026-08-17）
 //
@@ -239,7 +251,7 @@ var 画面の版 = 'C19';
 //   「QRが読めない」「オーダーシートが出ない」と、**別々の不具合に見えます。**
 //
 //   → 版を突き合わせて、**読ませる前に**そう言います。
-var 要るサーバーの版 = 'V4.129.0';   // ★ 押した側（?m=）を返せるのは、この版から
+var 要るサーバーの版 = 'V4.130.0';   // ★ 押した側（?m=）と帰り道（?b=）を返せるのは、この版から
 
 var API_URL = 'https://script.google.com/macros/s/AKfycbwsqBNvhiazVL5hpBRgB01aaXXgwwLUE34u-GWDa71BJH3qg218xY8ToBpNcMwWB_U/exec';
 
@@ -250,6 +262,14 @@ var TOKEN = qs.get('t') || '';
 //   ［持出チェック］を押したのに返却の側で開いたら、**間違えて記録されます。**
 //   `?m=return` が付いていれば返却、無ければ持出です。
 var 最初の側_ = (qs.get('m') === 'return') ? 'return' : 'out';
+
+// ★★★★ 帰り道（機材リスト／オーダーシートの画面）
+//   ★★ **サーバーが組み立てたものだけを使います。**
+//     `http(s)://` で始まらないものは受け取りません（`javascript:` などを弾くため）。
+var 帰り道_ = (function () {
+  var v = qs.get('b') || '';
+  return /^https?:\/\//i.test(v) ? v : '';
+})();
 
 var 控えの鍵   = 'hcx_check_' + TOKEN;
 var 未送信の鍵 = 'hcx_pending_' + TOKEN;
@@ -303,6 +323,11 @@ document.addEventListener('DOMContentLoaded', function () {
   $('mRet').addEventListener('click', function () { モードを変える('return'); });
   $('scanBtn').addEventListener('click', スキャンの入り切り);
   $('saveBtn').addEventListener('click', 保存する);
+  // ★★★★ 帰り道。分からないときは、行ごと出しません
+  if (帰り道_) {
+    $('backbar').style.display = 'flex';
+    $('backBtn').addEventListener('click', function () { 機材リストへ戻る_(); });
+  }
 
   if (!TOKEN) {
     $('list').innerHTML = '<div class="err">この画面は、機材システムの案件から開いてください。\n' +
@@ -1256,6 +1281,46 @@ function 待つのをやめる_() {
   if (e) e.style.display = 'none';
 }
 
+/**
+ * ★★★★ 機材リスト／オーダーシートの画面へ戻る
+ *
+ *   ★★★ **送れていないものがあるなら、黙って離れないこと。**
+ *     現場は電波の悪いところで使います。押し忘れたまま画面を離れると、
+ *     読んだぶんが**端末に残ったまま**になります。
+ */
+function 機材リストへ戻る_() {
+  if (!帰り道_) return;
+  var 未送信 = localStorage.getItem(未送信の鍵) || 未送信のtick_.length;
+  if (未送信 && !confirm('まだ送れていないチェックがあります。\n' +
+                        'このまま戻ると、この端末に残ったままになります。\n\n' +
+                        '戻りますか？（「キャンセル」で、この画面に留まります）')) return;
+  if (読み取り中) { try { スキャンを止める(); } catch (e) {} }
+  待たせる_('機材リストに戻っています…');
+  location.href = 帰り道_;
+}
+
+/**
+ * ★★★★ 保存が通ったら、機材リストへ戻るかを聞く（2026-08-20 辻さんのご指示）
+ *
+ *   ★★★ **黙って画面を飛ばさないこと。**
+ *     持ち出しのあと続けて返却を読む・読み残しを拾う、ということがあります。
+ *     勝手に戻ると、そのたびに**押し直し**になります。
+ *   ★ 帰り道が分からないときは、何も聞きません（聞いても行けないため）。
+ */
+function 戻るか聞く_() {
+  if (!帰り道_) return;
+  var 済 = 0, 全 = state.items.length;
+  state.items.forEach(function (x) { if (x.checked) 済++; });
+  var 残り = 全 - 済;
+  if (!confirm('記録しました（済 ' + 済 + ' / 未 ' + 残り + '）。\n\n' +
+               (残り ? '★ まだ ' + 残り + ' 点、チェックが付いていません。\n\n' : '') +
+               '機材リストに戻りますか？\n' +
+               '（「キャンセル」で、このまま続けられます）')) return;
+  if (読み取り中) { try { スキャンを止める(); } catch (e) {} }
+  待たせる_('機材リストに戻っています…');
+  location.href = 帰り道_;
+}
+
 function 保存のあと作り直す_() {
   呼ぶ('order')
     .then(function (d) {
@@ -1266,6 +1331,7 @@ function 保存のあと作り直す_() {
       state.items.forEach(function (x) { if (x.checked) x.保存済み = true; });
       描く();
       知らせる('オーダーシートを更新しました', 'ok');
+      戻るか聞く_();
     })
     .catch(function (e) {
       // ★★ 作り直せなくても、**保存はもう通っています。**そこを取り違えさせないこと
