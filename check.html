@@ -44,10 +44,15 @@
   .backbar button{ padding:6px 10px; font-size:12px; font-weight:bold;
                    border:1px solid var(--bd); background:#f1f3f4; color:#3c4043;
                    border-radius:6px; }
-  .modebar{ display:flex; gap:6px; }
-  .modebar button{ flex:1; padding:9px 0; font-size:14px; font-weight:bold;
-                   border:1px solid var(--pri); background:#fff; color:var(--pri); border-radius:6px; }
-  .modebar button.on{ background:var(--pri); color:#fff; }
+  /* ★★★★★ 2026-08-20、辻さんのご指示で**切り替えボタンを外しました。**
+       どちらを読むかは、押したボタン（持出／返却）で決まります。
+       ここで切り替えられると、**押した側と違う側に記録**できてしまいます。
+       ★ 代わりに「いまどちらを読んでいるか」を、大きく1行で出します。
+         切り替えられないぶん、**見て分かること**がより大事になります。 */
+  .modebar{ display:flex; }
+  .modebar .now{ flex:1; padding:9px 0; font-size:15px; font-weight:bold;
+                 text-align:center; border-radius:6px; color:#fff; background:var(--pri); }
+  .modebar .now.ret{ background:#0f9d58; }
   /* ★ 案件名は**1行**。長くても折り返さず、はみ出しは … にする（高さを動かさないため） */
   .order{ font-size:12px; color:#333; margin-top:6px;
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -173,8 +178,8 @@
     <button id="backBtn" type="button">◀ 機材リストに戻る</button>
   </div>
   <div class="modebar">
-    <button id="mOut" class="on">持ち出し</button>
-    <button id="mRet">返却</button>
+    <!-- ★ 押した側で開きます。ここでは切り替えません（2026-08-20 辻さんのご指示） -->
+    <div class="now" id="modeNow">📦 持ち出しチェック</div>
   </div>
   <div class="order" id="orderInfo">読み込み中…</div>
 </header>
@@ -242,7 +247,8 @@
 //     C19 … 押した側（持出／返却）で開く（?m=return）（2026-08-19）
 //     C20 … 機材リストへの帰り道（?b=）／保存できたら戻るか聞く（2026-08-20）
 //     C21 … ★外したことも記録する（押して外すと、印が消える）（2026-08-20）
-var 画面の版 = 'C21';
+//     C22 … 持出／返却の切り替えボタンを外した（押した側で開くため）（2026-08-20）
+var 画面の版 = 'C22';
 
 // ★★★★ **この画面が動くのに要る、サーバーの版**（2026-08-17）
 //
@@ -317,11 +323,8 @@ function 呼ぶ(action, 追加) {
 //  起動
 // ==========================================================
 document.addEventListener('DOMContentLoaded', function () {
-  // ★ 開いた側に合わせて、ボタンの見た目もそろえること
-  $('mOut').className = (state.mode === 'out') ? 'on' : '';
-  $('mRet').className = (state.mode === 'return') ? 'on' : '';
-  $('mOut').addEventListener('click', function () { モードを変える('out'); });
-  $('mRet').addEventListener('click', function () { モードを変える('return'); });
+  // ★ 開いた側を、大きく出す（切り替えはできません）
+  いまの側を出す_();
   $('scanBtn').addEventListener('click', スキャンの入り切り);
   $('saveBtn').addEventListener('click', 保存する);
   // ★★★★ 帰り道。分からないときは、行ごと出しません
@@ -554,13 +557,22 @@ function 短く(s) {
  *     読むたびにサーバーへ残しているので、切り替えて戻っても済みは残ります。
  *     消していたころは、間違えて押しただけで手間がまるごと飛びました。
  */
-function モードを変える(m) {
-  if (state.mode === m) return;
-  state.mode = m;
-  $('mOut').className = (m === 'out') ? 'on' : '';
-  $('mRet').className = (m === 'return') ? 'on' : '';
-  続きを当てる_();
-  描く();
+/**
+ * ★★★★★ いま、どちらを読んでいるか
+ *
+ *   2026-08-20、辻さんのご指示で**切り替えボタンを外しました。**
+ *   どちらを読むかは、押したボタン（📦 持出／📥 返却）で決まります。
+ *
+ *   ★ 切り替えられないぶん、**見て分かること**がより大事になります。
+ *     間違った側で読んでしまうと、返却したものが持ち出しとして記録されます。
+ *     色も変えます（持出＝青／返却＝緑。オーダーシートのボタンと同じ色です）。
+ */
+function いまの側を出す_() {
+  var e = $('modeNow');
+  if (!e) return;
+  var 返却 = (state.mode === 'return');
+  e.textContent = 返却 ? '📥 返却チェック' : '📦 持ち出しチェック';
+  e.className = 'now' + (返却 ? ' ret' : '');
 }
 
 // ==========================================================
